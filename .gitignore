@@ -1,0 +1,46 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode & iOS
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+*.build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+.swiftpm/
+
+# Rust / Cargo
+target/
+**/target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# SpacetimeDB
+.spacetime/
+**/spacetime.local.json
+*.spacetimedb.local
+
+# Node / JS / Web
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*~
