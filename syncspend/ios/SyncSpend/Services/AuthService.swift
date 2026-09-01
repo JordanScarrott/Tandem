@@ -18,9 +18,9 @@ public final class AuthService: NSObject, ASWebAuthenticationPresentationContext
     public var errorMessage: String?
 
     private let authAuthority = "https://auth.spacetimedb.com/oidc"
-    private let clientId = "syncspend_ios_client"
-    private let redirectURI = "syncspend://auth/callback"
-    private let callbackScheme = "syncspend"
+    private let clientId = "client_034HBfvzsY4Xnxn1pwNaWA"
+    private let redirectURI = "https://auth.spacetimedb.com/oidc/callback"
+    private let callbackScheme = "https"
 
     public override init() {
         super.init()
@@ -101,16 +101,32 @@ public final class AuthService: NSObject, ASWebAuthenticationPresentationContext
 
             // 3. Launch Web Authentication Session
             let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-                let session = ASWebAuthenticationSession(
-                    url: authURL,
-                    callbackURLScheme: self.callbackScheme
-                ) { callbackURL, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else if let callbackURL = callbackURL {
-                        continuation.resume(returning: callbackURL)
-                    } else {
-                        continuation.resume(throwing: URLError(.unknown))
+                let session: ASWebAuthenticationSession
+                if #available(iOS 17.4, *) {
+                    session = ASWebAuthenticationSession(
+                        url: authURL,
+                        callback: .https(host: "auth.spacetimedb.com", path: "/oidc/callback")
+                    ) { callbackURL, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else if let callbackURL = callbackURL {
+                            continuation.resume(returning: callbackURL)
+                        } else {
+                            continuation.resume(throwing: URLError(.unknown))
+                        }
+                    }
+                } else {
+                    session = ASWebAuthenticationSession(
+                        url: authURL,
+                        callbackURLScheme: self.callbackScheme
+                    ) { callbackURL, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else if let callbackURL = callbackURL {
+                            continuation.resume(returning: callbackURL)
+                        } else {
+                            continuation.resume(throwing: URLError(.unknown))
+                        }
                     }
                 }
                 session.presentationContextProvider = self
