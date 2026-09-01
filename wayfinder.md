@@ -1,249 +1,151 @@
-Here is your Wayfinder sequence for **Milestone 2: Personal Ledger Power-Ups, Dedicated Categories & Soft Deletes**.
+# Wayfinder Map: Single-Player Budgeting & Envelope Engine
 
-### Milestone 2 Execution Map
-
-| Ticket | Scope | Deliverables |
-| --- | --- | --- |
-| **TICKET-02** *(Current)* | Backend (Rust) | `user_profile` table, `category` table with starter seeds, soft-delete (`deleted_at`), and `restore_expense` reducer. |
-| **TICKET-03** | iOS Client | Category management, swipe-to-delete with haptic undo bar, and custom category creation. |
-| **TICKET-04** | Backend (Rust) | `couple_space`, `couple_invite` (6-char pairing code), and `expense_split` proportional engine. |
-| **TICKET-05** | iOS Client | Partner invite handshake sheet + "Yours, Mine, Ours" 3-way split toggle. |
+## Destination
+A complete, frictionless **Single-Player Budgeting and Category Envelope Experience** on iOS backed by SpacetimeDB:
+1. Payday-anchored monthly budgeting cycles with automatic starter envelope seeding.
+2. Ultra-fast transaction logging (Amount first -> Note -> Sliding Wheel pickers -> Auto-fallback title -> Bottom confirmation).
+3. Live category envelope tracking with dynamic budget adjustment and visual overspend warnings.
+4. Transient 5-second swipe-to-delete undo flow.
 
 ---
 
-### Copy-Paste Prompt for Your Agent: **TICKET-02**
-
-```markdown
-# Agent Ticket: TICKET-02 – Backend Categories, User Profiles & Soft Deletion
-
-## Context
-Iteration 1 verified single-user expense logging with hardcoded category strings. We now need a normalized relational model supporting:
-1. Dynamic categories with icons, hex colors, and monthly budget limits.
-2. User profile initialization that automatically seeds standard starter categories.
-3. Safe soft-deletion (`deleted_at: Option<Timestamp>`) with an atomic restore/undo reducer.
+## Notes
+- **Domain Language**: Integer accounting (`amount_cents: i64`), payday cycle windows `[previous_payday, next_payday)`, category envelopes (`monthly_budget_cents`), soft deletion (`deleted_at: Option<Timestamp>`), dual-scope seam (`space_id: Option<u64>` defaults to `None`).
+- **Interaction Model**: Wheel/roller picker interface (like iOS timer/alarm wheels), thumb-reachable bottom CTA, auto-default description to category name if left blank.
+- **Skills**: `wayfinder`, `domain-modeling`, `wait-what`.
 
 ---
 
-## 1. Schema & Reducer Spec (`server/src/lib.rs`)
+## Decisions So Far
 
-Replace `server/src/lib.rs` with the following implementation:
-
-```rust
-use spacetimedb::{table, reducer, Identity, Timestamp, ReducerContext};
-
-#[table(name = user_profile, public)]
-pub struct UserProfile {
-    #[primary_key]
-    pub identity: Identity,
-    pub display_name: String,
-    pub default_currency: String, // "ZAR"
-    pub billing_cycle_start_day: u8, // 1–31
-    pub created_at: Timestamp,
-}
-
-#[table(name = category, public)]
-pub struct Category {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub owner: Identity,
-    pub name: String,
-    pub icon: String, // SF Symbol name e.g. "cart.fill"
-    pub color_hex: String, // e.g. "#10B981"
-    pub monthly_budget_cents: Option<i64>,
-    pub is_archived: bool,
-}
-
-#[table(name = expense, public)]
-pub struct Expense {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub owner: Identity,
-    pub amount_cents: i64,
-    pub currency: String,
-    pub category_id: u64,
-    pub payment_method: String,
-    pub note: String,
-    pub spent_at_millis: i64,
-    pub created_at: Timestamp,
-    pub updated_at: Timestamp,
-    pub deleted_at: Option<Timestamp>,
-}
-
-// --- Reducers ---
-
-#[reducer]
-pub fn initialize_user_profile(
-    ctx: &ReducerContext,
-    display_name: String,
-    default_currency: String,
-    billing_cycle_start_day: u8,
-) -> Result<(), String> {
-    if ctx.db.user_profile().identity().find(ctx.sender).is_some() {
-        return Ok(()); // Already initialized
-    }
-
-    ctx.db.user_profile().insert(UserProfile {
-        identity: ctx.sender,
-        display_name,
-        default_currency: default_currency.to_uppercase(),
-        billing_cycle_start_day: billing_cycle_start_day.clamp(1, 28),
-        created_at: ctx.timestamp,
-    });
-
-    // Seed default starter categories
-    let starter_categories = [
-        ("Groceries", "cart.fill", "#10B981", Some(600_000)), // R6,000 budget
-        ("Dining & Coffee", "cup.and.saucer.fill", "#F59E0B", Some(250_000)), // R2,500
-        ("Transport / Fuel", "fuelpump.fill", "#3B82F6", Some(200_000)), // R2,000
-        ("Utilities", "bolt.fill", "#8B5CF6", None),
-        ("Personal Fun", "sparkles", "#EC4899", Some(150_000)), // R1,500
-    ];
-
-    for (name, icon, color, budget) in starter_categories {
-        ctx.db.category().insert(Category {
-            id: 0,
-            owner: ctx.sender,
-            name: name.into(),
-            icon: icon.into(),
-            color_hex: color.into(),
-            monthly_budget_cents: budget,
-            is_archived: false,
-        });
-    }
-
-    Ok(())
-}
-
-#[reducer]
-pub fn create_category(
-    ctx: &ReducerContext,
-    name: String,
-    icon: String,
-    color_hex: String,
-    monthly_budget_cents: Option<i64>,
-) -> Result<(), String> {
-    if name.trim().is_empty() {
-        return Err("Category name cannot be empty".into());
-    }
-
-    ctx.db.category().insert(Category {
-        id: 0,
-        owner: ctx.sender,
-        name: name.trim().into(),
-        icon,
-        color_hex,
-        monthly_budget_cents,
-        is_archived: false,
-    });
-
-    Ok(())
-}
-
-#[reducer]
-pub fn log_expense(
-    ctx: &ReducerContext,
-    amount_cents: i64,
-    currency: String,
-    category_id: u64,
-    payment_method: String,
-    note: String,
-    spent_at_millis: i64,
-) -> Result<(), String> {
-    if amount_cents <= 0 {
-        return Err("Amount must be greater than zero".into());
-    }
-
-    let category = ctx.db.category().id().find(category_id)
-        .ok_or("Category not found")?;
-
-    if category.owner != ctx.sender {
-        return Err("Unauthorized category access".into());
-    }
-
-    ctx.db.expense().insert(Expense {
-        id: 0,
-        owner: ctx.sender,
-        amount_cents,
-        currency: currency.to_uppercase(),
-        category_id,
-        payment_method,
-        note,
-        spent_at_millis,
-        created_at: ctx.timestamp,
-        updated_at: ctx.timestamp,
-        deleted_at: None,
-    });
-
-    Ok(())
-}
-
-#[reducer]
-pub fn soft_delete_expense(ctx: &ReducerContext, expense_id: u64) -> Result<(), String> {
-    let mut expense = ctx.db.expense().id().find(expense_id)
-        .ok_or("Expense not found")?;
-
-    if expense.owner != ctx.sender {
-        return Err("Unauthorized to delete this record".into());
-    }
-
-    expense.deleted_at = Some(ctx.timestamp);
-    expense.updated_at = ctx.timestamp;
-    ctx.db.expense().id().update(expense);
-
-    Ok(())
-}
-
-#[reducer]
-pub fn restore_expense(ctx: &ReducerContext, expense_id: u64) -> Result<(), String> {
-    let mut expense = ctx.db.expense().id().find(expense_id)
-        .ok_or("Expense not found")?;
-
-    if expense.owner != ctx.sender {
-        return Err("Unauthorized to restore this record".into());
-    }
-
-    expense.deleted_at = None;
-    expense.updated_at = ctx.timestamp;
-    ctx.db.expense().id().update(expense);
-
-    Ok(())
-}
-
-```
+- **Onboarding & Payday Anchor**: Upfront modal for display name and payday anchor (1–28). "Skip for now" initializes standard defaults (`display_name: "You"`, `default_currency: "ZAR"`, `billing_cycle_start_day: 1`) and seeds 5 envelopes immediately.
+- **Zero-Rollover Clean Slate**: Monthly budget cycles reset cleanly on the user's payday. Cycle window strictly bounds expenses `[previous_payday, next_payday)` clamped by `min(billing_cycle_start_day, days_in_month)`.
+- **Soft Overspend Warnings**: Spending beyond envelope limits displays warning indicators (red bar, negative remaining balance); no hard blocks.
+- **Strict Category Envelopes**: All expenses require a category. Archiving preserves historical expense records while hiding the envelope from active creation pickers.
+- **5-Second Transient Undo**: Deletion updates `deleted_at: Option<Timestamp>` and presents a floating haptic action bar with "Undo" triggering `restore_expense`.
+- **High-Velocity Entry Flow**:
+  1. Amount entered first via custom numeric keypad / field.
+  2. Note/description immediately below amount. If left blank, defaults automatically to the chosen category name.
+  3. Sliding wheel / roller list for category and payment method selection.
+  4. Prominent bottom confirm button (no reaching for top-right navigation bar).
 
 ---
 
-## 2. Verification Steps
+## User Stories & Ticket Breakdown
 
-1. Run `cargo check` inside `server/`.
-2. Ensure `spacetime build --module-path server` compiles without warnings.
-3. Test locally via CLI:
-* Call `initialize_user_profile`:
-```bash
-spacetime call syncspend initialize_user_profile '["Jordan", "ZAR", 1]'
+### [TICKET-SP-01] Backend: Profile, Envelopes & Soft-Delete Engine (Rust)
+- **User Story**: As a user, I want my profile initialized with my payday anchor, 5 starter envelopes automatically generated, and full CRUD + soft-delete/restore capabilities for expenses.
+- **Table Schemas (`server/src/lib.rs`)**:
+  ```rust
+  #[table(name = user_profile)]
+  pub struct UserProfile {
+      #[primary_key]
+      pub identity: Identity,
+      pub display_name: String,
+      pub default_currency: String, // "ZAR"
+      pub billing_cycle_start_day: u8, // 1–28
+      pub created_at: Timestamp,
+  }
 
-```
+  #[table(name = category)]
+  pub struct Category {
+      #[primary_key]
+      #[auto_inc]
+      pub id: u64,
+      #[index(btree)]
+      pub owner: Identity,
+      pub name: String,
+      pub icon: String, // SF Symbol name e.g. "cart.fill"
+      pub color_hex: String, // e.g. "#10B981"
+      pub monthly_budget_cents: Option<i64>,
+      pub is_archived: bool,
+      pub space_id: Option<u64>, // Seam for future multiplayer sync (defaults to None)
+  }
 
+  #[table(name = expense)]
+  pub struct Expense {
+      #[primary_key]
+      #[auto_inc]
+      pub id: u64,
+      #[index(btree)]
+      pub owner: Identity,
+      pub amount_cents: i64,
+      pub currency: String,
+      pub category_id: u64,
+      pub payment_method: String,
+      pub note: String,
+      pub spent_at_millis: i64,
+      pub created_at: Timestamp,
+      pub updated_at: Timestamp,
+      pub deleted_at: Option<Timestamp>,
+      pub space_id: Option<u64>, // Seam for future multiplayer sync (defaults to None)
+      pub split_mode: String,
+  }
+  ```
+- **Reducers to Implement / Update**:
+  - `initialize_user_profile(display_name, default_currency, billing_cycle_start_day)`: Clamps day to 1–28, auto-seeds 5 starter envelopes.
+  - `update_user_profile(display_name, billing_cycle_start_day)`: Updates display name and payday anchor.
+  - `create_category(name, icon, color_hex, monthly_budget_cents)`
+  - `update_category(category_id, name, icon, color_hex, monthly_budget_cents)`
+  - `archive_category(category_id)`: Toggles `is_archived = true`.
+  - `log_expense(amount_cents, currency, category_id, payment_method, note, spent_at_millis)`
+  - `update_expense(expense_id, amount_cents, currency, category_id, payment_method, note, spent_at_millis, split_mode)`
+  - `soft_delete_expense(expense_id)`: Sets `deleted_at = Some(ctx.timestamp)`.
+  - `restore_expense(expense_id)`: Sets `deleted_at = None`.
+- **Views**:
+  - `my_profile`: Caller's profile.
+  - `my_categories`: Active envelopes (`owner == ctx.sender && !is_archived`).
+  - `my_expenses`: Active expenses (`owner == ctx.sender && deleted_at IS NULL`), sorted by `spent_at_millis DESC`.
 
-* Verify seeded categories:
-```bash
-spacetime sql syncspend "SELECT id, name, icon, color_hex, monthly_budget_cents FROM category;"
+---
 
-```
+### [TICKET-SP-02] iOS: First-Run Onboarding Modal & Settings Payday Configuration
+- **User Story**: As a new user, I want a clean onboarding screen to set my name and payday (with a skip button), and ability to adjust my payday anchor anytime in Settings.
+- **Scope**:
+  - `OnboardingPaydaySheet.swift`: Greeting, name input, payday day picker (1–28), "Start Budgeting" CTA, and "Skip for now" button.
+  - `SettingsView.swift`: Profile section displaying current payday anchor (e.g. "Payday: 25th of every month") with sheet to update.
+  - Auto-initialization trigger on first launch if uninitialized.
 
+---
 
-* Call `log_expense` with a valid `category_id` (e.g. 1) and confirm row insertion.
-* Call `soft_delete_expense` and verify `deleted_at IS NOT NULL`.
-* Call `restore_expense` and verify `deleted_at IS NULL`.
+### [TICKET-SP-03] iOS: High-Velocity Rapid Expense Sheet (Wheel Picker & Auto-Defaults)
+- **User Story**: As a user logging an expense on the go, I want to type the amount, optionally add a note, slide through wheel pickers for category/method, and tap a bottom button to log in under 3 seconds.
+- **Scope**:
+  - `NewExpenseSheet.swift` redesign:
+    - Amount field focused on appear.
+    - Description field immediately below. (If blank on submit, populate with selected category name).
+    - Wheel/roller sliding selection for Category (icon + name) and Payment Method (Cash, Card, EFT, etc.).
+    - Prominent bottom "Add Transaction" CTA above keyboard.
+  - Instant SpacetimeDB mutation via `log_expense`.
 
+---
 
+### [TICKET-SP-04] iOS: Payday-Cycle Category Envelope Dashboard & Overspend Indicators
+- **User Story**: As a user reviewing my budget, I want to see how much I've spent vs. my monthly envelope limit for the current payday cycle, with clear visual alerts if an envelope is over budget.
+- **Scope**:
+  - Cycle calculation utility: Computes `[start_date, end_date]` for active payday window.
+  - Category Envelope cards: Spent amount, budget limit, progress bar (accent color when healthy, crimson warning when exceeded with "-R... over budget" badge).
+  - Category filter toggle on dashboard.
 
-Report the CLI verification outputs when completed.
+---
 
-```
+### [TICKET-SP-05] iOS: Swipe-to-Delete & 5-Second Haptic Floating Undo Bar
+- **User Story**: As a user who accidentally deleted a transaction, I want a 5-second transient floating bar with an "Undo" button to restore it immediately.
+- **Scope**:
+  - `TransactionRowView.swift`: Swipe action to delete triggering `soft_delete_expense`.
+  - `UndoToastOverlay.swift`: Global floating banner appearing on delete with a 5-second progress timer and "Undo" tap target triggering `restore_expense`.
+  - Haptic feedback (`UINotificationFeedbackGenerator`) on deletion and restoration.
 
-<FollowUp label="Want me to prepare TICKET-03 for the iOS client UI once this compiles?" query="TICKET-02 is ready. Please draft TICKET-03 for connecting the new Category schema and Soft Delete actions in SwiftUI."/>
+---
 
-```
+## Not Yet Specified (Fog of War)
+- Custom recurring bills detection (e.g. rent/subscriptions automatically allocated on payday).
+- CSV / Bank statement export per payday cycle.
+- Split-space transition helper (migrating single-player envelopes into a couple space when pairing).
+
+---
+
+## Out of Scope
+- Couple pairing and proportional expense splitting (deferred to Milestone 3).
+- OCR receipt camera scanning.
+- External bank account API aggregators.
