@@ -12,6 +12,8 @@ public struct SettingsView: View {
     @State private var showingProModal: Bool = false
     @State private var showingCurrencySheet: Bool = false
     @State private var showingSignOutAlert: Bool = false
+    @State private var showingPaydayEditSheet: Bool = false
+    @State private var showingManageEnvelopesSheet: Bool = false
     
     public init(
         currency: Binding<CurrencyItem>,
@@ -91,13 +93,14 @@ public struct SettingsView: View {
                                 )
                                 .frame(width: 48, height: 48)
                             
-                            Text(String((authService.currentUserName ?? accountName).prefix(1)).uppercased())
+                            let initial = String((viewModel.userProfile?.displayName ?? authService.currentUserName ?? accountName).prefix(1)).uppercased()
+                            Text(initial)
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundStyle(.white)
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(authService.currentUserName ?? accountName)
+                            Text(viewModel.userProfile?.displayName ?? authService.currentUserName ?? accountName)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundStyle(Theme.primaryDark)
                             
@@ -127,6 +130,95 @@ public struct SettingsView: View {
                         RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
                             .strokeBorder(Theme.cardBorder, lineWidth: 1)
                     )
+                    
+                    // Budget & Payday Anchor Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("BUDGET & PAYDAY")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.mutedText)
+                            .padding(.horizontal, 4)
+                        
+                        VStack(spacing: 0) {
+                            Button {
+                                showingPaydayEditSheet = true
+                            } label: {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(Theme.accentBlue.opacity(0.12))
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: "calendar.badge.clock")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundStyle(Theme.accentBlue)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Payday Anchor")
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundStyle(Theme.primaryDark)
+                                        Text("Envelopes reset monthly")
+                                            .font(.system(size: 11, weight: .regular))
+                                            .foregroundStyle(Theme.mutedText)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    let day = viewModel.userProfile?.billingCycleStartDay ?? 1
+                                    Text("\(day)\(ordinalSuffix(Int(day))) of month")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(Theme.accentBlue)
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Theme.mutedText)
+                                }
+                                .padding(16)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Divider().padding(.leading, 56)
+                            
+                            Button {
+                                showingManageEnvelopesSheet = true
+                            } label: {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(Theme.accentGreen.opacity(0.12))
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: "tray.2.fill")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundStyle(Theme.accentGreen)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Category Envelopes")
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundStyle(Theme.primaryDark)
+                                        Text("Caps, icons, colors & archives")
+                                            .font(.system(size: 11, weight: .regular))
+                                            .foregroundStyle(Theme.mutedText)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Theme.mutedText)
+                                }
+                                .padding(16)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .background(Theme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                        )
+                    }
                     
                     // Preferences Section
                     VStack(alignment: .leading, spacing: 8) {
@@ -375,6 +467,15 @@ public struct SettingsView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showingPaydayEditSheet) {
+                EditPaydayProfileSheet(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingManageEnvelopesSheet) {
+                ManageEnvelopesSheet(currency: currency)
+            }
+            .task {
+                await viewModel.loadProfile()
+            }
             .alert("Sign Out", isPresented: $showingSignOutAlert) {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign Out", role: .destructive) {
@@ -386,5 +487,188 @@ public struct SettingsView: View {
                 Text("Are you sure you want to sign out of SyncSpend? Your local session will be cleared.")
             }
         }
+    }
+}
+
+private struct EditPaydayProfileSheet: View {
+    var viewModel: SettingsViewModel
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var name: String = ""
+    @State private var day: UInt8 = 1
+    @State private var isSaving: Bool = false
+    @State private var errorMessage: String?
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("DISPLAY NAME")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.mutedText)
+                            .padding(.horizontal, 4)
+                        
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 15))
+                                .foregroundStyle(Theme.mutedText)
+                            
+                            TextField("Your Name", text: $name)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Theme.primaryDark)
+                        }
+                        .padding(16)
+                        .background(Theme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                        )
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("PAYDAY ANCHOR (1–28)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Theme.mutedText)
+                            Spacer()
+                            Text("Day \(day)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(Theme.accentBlue)
+                        }
+                        .padding(.horizontal, 4)
+                        
+                        VStack(spacing: 12) {
+                            ScrollViewReader { proxy in
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(1...28, id: \.self) { d in
+                                            let isSelected = day == UInt8(d)
+                                            Button {
+                                                Haptics.selection()
+                                                day = UInt8(d)
+                                            } label: {
+                                                VStack(spacing: 2) {
+                                                    Text("\(d)")
+                                                        .font(.system(size: 16, weight: isSelected ? .bold : .medium))
+                                                    Text(ordinalSuffix(d))
+                                                        .font(.system(size: 9, weight: isSelected ? .semibold : .regular))
+                                                }
+                                                .frame(width: 44, height: 48)
+                                                .background(isSelected ? Theme.primaryDark : Theme.tertiaryBackground)
+                                                .foregroundStyle(isSelected ? Theme.buttonForeground : Theme.primaryDark)
+                                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                        .strokeBorder(isSelected ? Color.clear : Theme.cardBorder, lineWidth: 1)
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
+                                            .id(d)
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                                .onAppear {
+                                    proxy.scrollTo(Int(day), anchor: .center)
+                                }
+                            }
+                            
+                            Text("Your monthly category envelopes and budget spending cycles reset on this day.")
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundStyle(Theme.mutedText)
+                        }
+                        .padding(16)
+                        .background(Theme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                        )
+                    }
+                    
+                    if let err = errorMessage {
+                        Text(err)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.accentRed)
+                    }
+                    
+                    Button {
+                        save()
+                    } label: {
+                        HStack {
+                            if isSaving {
+                                ProgressView()
+                                    .tint(Theme.buttonForeground)
+                                    .padding(.trailing, 6)
+                            }
+                            Text("Save Payday Anchor")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Theme.primaryDark)
+                        .foregroundStyle(Theme.buttonForeground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.buttonCornerRadius, style: .continuous))
+                    }
+                    .disabled(isSaving)
+                }
+                .padding(20)
+            }
+            .background(Theme.appBackground.ignoresSafeArea())
+            .navigationTitle("Payday & Budget Anchor")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                if let profile = viewModel.userProfile {
+                    name = profile.displayName
+                    day = profile.billingCycleStartDay
+                }
+            }
+        }
+    }
+    
+    private func save() {
+        Haptics.impact(.medium)
+        isSaving = true
+        errorMessage = nil
+        
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmed.isEmpty ? (viewModel.userProfile?.displayName ?? "You") : trimmed
+        
+        Task {
+            let success = await viewModel.updateProfile(displayName: finalName, billingCycleStartDay: day)
+            await MainActor.run {
+                isSaving = false
+                if success {
+                    Haptics.notification(.success)
+                    dismiss()
+                } else {
+                    errorMessage = viewModel.errorMessage ?? "Failed to update profile"
+                    Haptics.notification(.error)
+                }
+            }
+        }
+    }
+}
+
+private func ordinalSuffix(_ n: Int) -> String {
+    let ones = n % 10
+    let tens = (n / 10) % 10
+    if tens == 1 {
+        return "th"
+    }
+    switch ones {
+    case 1: return "st"
+    case 2: return "nd"
+    case 3: return "rd"
+    default: return "th"
     }
 }

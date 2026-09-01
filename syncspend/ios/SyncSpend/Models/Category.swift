@@ -8,6 +8,7 @@ public struct CategoryItem: Identifiable, Codable, Hashable {
     public let colorHex: String
     public let monthlyBudgetCents: Int64?
     public let isArchived: Bool
+    public let spaceId: UInt64?
 
     public var color: Color {
         Color(hex: colorHex) ?? .accentColor
@@ -25,7 +26,8 @@ public struct CategoryItem: Identifiable, Codable, Hashable {
         icon: String,
         colorHex: String,
         monthlyBudgetCents: Int64? = nil,
-        isArchived: Bool = false
+        isArchived: Bool = false,
+        spaceId: UInt64? = nil
     ) {
         self.id = id
         self.name = name
@@ -33,6 +35,7 @@ public struct CategoryItem: Identifiable, Codable, Hashable {
         self.colorHex = colorHex
         self.monthlyBudgetCents = monthlyBudgetCents
         self.isArchived = isArchived
+        self.spaceId = spaceId
     }
 }
 

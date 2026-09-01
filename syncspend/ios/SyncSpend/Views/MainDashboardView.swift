@@ -8,6 +8,8 @@ public struct MainDashboardView: View {
     @State private var showingAccounts: Bool = false
     @State private var showingSettings: Bool = false
     @State private var showingSearch: Bool = false
+    @State private var showingAddCategory: Bool = false
+    @State private var selectedCategoryToEdit: CategoryItem? = nil
     @State private var selectedExpenseToEdit: ExpenseItem? = nil
     
     public init() {}
@@ -168,7 +170,24 @@ public struct MainDashboardView: View {
                         )
                         .padding(.horizontal, 16)
                         
-                        // 2. Grouped Transaction List
+                        // 2. Category Envelopes Section (Payday Cycle Tracking)
+                        CategoryEnvelopesDashboardSection(
+                            cycle: viewModel.currentPaydayCycle,
+                            envelopeStatuses: viewModel.envelopeStatuses,
+                            totalSpentCents: viewModel.cycleTotalSpentCents,
+                            totalBudgetCents: viewModel.cycleTotalBudgetCents,
+                            currency: viewModel.currency,
+                            selectedCategoryId: $viewModel.selectedFilterCategoryId,
+                            onAddEnvelope: {
+                                showingAddCategory = true
+                            },
+                            onEditEnvelope: { cat in
+                                selectedCategoryToEdit = cat
+                            }
+                        )
+                        .padding(.horizontal, 16)
+                        
+                        // 3. Grouped Transaction List
                         TransactionGroupListView(
                             groupedExpenses: viewModel.groupedExpenses,
                             categories: viewModel.categories,
@@ -283,6 +302,28 @@ public struct MainDashboardView: View {
                         selectedExpenseToEdit = item
                     }
                 )
+            }
+            .sheet(isPresented: $showingAddCategory) {
+                CategoryEnvelopeSheet(mode: .create, currency: viewModel.currency) {
+                    Task {
+                        await viewModel.loadCategories()
+                    }
+                }
+            }
+            .sheet(item: $selectedCategoryToEdit) { cat in
+                CategoryEnvelopeSheet(mode: .edit(cat), currency: viewModel.currency) {
+                    Task {
+                        await viewModel.loadCategories()
+                    }
+                }
+            }
+            .sheet(isPresented: $viewModel.needsOnboarding) {
+                OnboardingPaydaySheet {
+                    viewModel.needsOnboarding = false
+                    Task {
+                        await viewModel.refreshAll()
+                    }
+                }
             }
             .task {
                 await viewModel.refreshAll()

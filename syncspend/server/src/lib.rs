@@ -22,6 +22,7 @@ pub struct Category {
     pub color_hex: String, // e.g. "#10B981"
     pub monthly_budget_cents: Option<i64>,
     pub is_archived: bool,
+    pub space_id: Option<u64>, // Seam for future multiplayer sync (defaults to None)
 }
 
 #[table(name = couple_space)]
@@ -238,8 +239,31 @@ pub fn initialize_user_profile(
             color_hex: color.into(),
             monthly_budget_cents: budget,
             is_archived: false,
+            space_id: None,
         });
     }
+
+    Ok(())
+}
+
+#[reducer]
+pub fn update_user_profile(
+    ctx: &ReducerContext,
+    display_name: String,
+    billing_cycle_start_day: u8,
+) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
+    let mut profile = ctx.db.user_profile().identity().find(ctx.sender)
+        .ok_or("User profile not found")?;
+
+    let trimmed_name = display_name.trim();
+    if !trimmed_name.is_empty() {
+        profile.display_name = trimmed_name.into();
+    }
+    profile.billing_cycle_start_day = billing_cycle_start_day.clamp(1, 28);
+
+    ctx.db.user_profile().identity().update(profile);
 
     Ok(())
 }
@@ -266,7 +290,57 @@ pub fn create_category(
         color_hex,
         monthly_budget_cents,
         is_archived: false,
+        space_id: None,
     });
+
+    Ok(())
+}
+
+#[reducer]
+pub fn update_category(
+    ctx: &ReducerContext,
+    category_id: u64,
+    name: String,
+    icon: String,
+    color_hex: String,
+    monthly_budget_cents: Option<i64>,
+) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
+    if name.trim().is_empty() {
+        return Err("Category name cannot be empty".into());
+    }
+
+    let mut category = ctx.db.category().id().find(category_id)
+        .ok_or("Category not found")?;
+
+    if category.owner != ctx.sender {
+        return Err("Unauthorized category access".into());
+    }
+
+    category.name = name.trim().into();
+    category.icon = icon;
+    category.color_hex = color_hex;
+    category.monthly_budget_cents = monthly_budget_cents;
+
+    ctx.db.category().id().update(category);
+
+    Ok(())
+}
+
+#[reducer]
+pub fn archive_category(ctx: &ReducerContext, category_id: u64) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
+    let mut category = ctx.db.category().id().find(category_id)
+        .ok_or("Category not found")?;
+
+    if category.owner != ctx.sender {
+        return Err("Unauthorized category access".into());
+    }
+
+    category.is_archived = true;
+    ctx.db.category().id().update(category);
 
     Ok(())
 }

@@ -94,6 +94,17 @@ public final class SpacetimeService {
         )
     }
 
+    /// Updates user profile display name and payday anchor
+    public func updateUserProfile(
+        displayName: String,
+        billingCycleStartDay: UInt8
+    ) async throws {
+        try await callReducer(
+            name: "update_user_profile",
+            payload: [displayName, billingCycleStartDay]
+        )
+    }
+
     /// Creates a new custom category
     public func createCategory(
         name: String,
@@ -110,6 +121,34 @@ public final class SpacetimeService {
         try await callReducer(
             name: "create_category",
             payload: [name, icon, colorHex, budgetParam]
+        )
+    }
+
+    /// Updates an existing category envelope
+    public func updateCategory(
+        categoryId: UInt64,
+        name: String,
+        icon: String,
+        colorHex: String,
+        monthlyBudgetCents: Int64?
+    ) async throws {
+        let budgetParam: [String: Any]
+        if let budget = monthlyBudgetCents {
+            budgetParam = ["some": budget]
+        } else {
+            budgetParam = ["none": [] as [Any]]
+        }
+        try await callReducer(
+            name: "update_category",
+            payload: [categoryId, name, icon, colorHex, budgetParam]
+        )
+    }
+
+    /// Archives a category envelope (preserves historical records, hides from active envelope pickers)
+    public func archiveCategory(categoryId: UInt64) async throws {
+        try await callReducer(
+            name: "archive_category",
+            payload: [categoryId]
         )
     }
 
@@ -252,13 +291,26 @@ public final class SpacetimeService {
                 budgetCents = budgetNum.int64Value
             }
 
+            var spaceId: UInt64? = nil
+            if row.count > 7 {
+                if let spaceVariant = row[7] as? [Any],
+                   spaceVariant.count == 2,
+                   let variantIdx = spaceVariant[0] as? Int, variantIdx == 0,
+                   let sNum = spaceVariant[1] as? NSNumber {
+                    spaceId = sNum.uint64Value
+                } else if let sNum = row[7] as? NSNumber {
+                    spaceId = sNum.uint64Value
+                }
+            }
+
             return CategoryItem(
                 id: id,
                 name: name,
                 icon: icon,
                 colorHex: colorHex,
                 monthlyBudgetCents: budgetCents,
-                isArchived: isArchived
+                isArchived: isArchived,
+                spaceId: spaceId
             )
         }
     }

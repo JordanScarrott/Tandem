@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Multi-User Row Isolation & Database Security Verification for SpacetimeDB
-Tests row-level security, private table restrictions, and couple space sharing across multiple identities.
+Tests row-level security, private table restrictions, profile/category management,
+envelope budgeting, soft-delete & restore, and couple space sharing across multiple identities.
 """
 
 import sys
@@ -66,7 +67,7 @@ def run_sql(token, query):
 
 def run_tests():
     print("=" * 60)
-    print("SpacetimeDB Security & Multi-User Row Isolation Test Suite")
+    print("SpacetimeDB Security & Single-Player Engine Test Suite")
     print(f"Target Server: {HOST_URL} (Database: {DB_NAME})")
     print("=" * 60)
 
@@ -82,94 +83,159 @@ def run_tests():
     # 2. Test Private Table Access Restriction
     print("\n[Step 2] Testing private table security restrictions...")
     status, res_exp = run_sql(token_a, "SELECT * FROM expense;")
-    print(f"  Direct 'SELECT * FROM expense;' returned: {res_exp}")
     is_private_exp = (isinstance(res_exp, str) and "marked private" in res_exp.lower()) or (isinstance(res_exp, list) and len(res_exp) == 0)
     assert is_private_exp, f"Direct query on private table 'expense' must be blocked or return 0 rows: {res_exp}"
 
     status, res_cat = run_sql(token_a, "SELECT * FROM category;")
-    print(f"  Direct 'SELECT * FROM category;' returned: {res_cat}")
     is_private_cat = (isinstance(res_cat, str) and "marked private" in res_cat.lower()) or (isinstance(res_cat, list) and len(res_cat) == 0)
     assert is_private_cat, f"Direct query on private table 'category' must be blocked or return 0 rows: {res_cat}"
     print("  ✓ Private tables successfully protected against direct SQL scans")
 
-    # 3. User A Profile & Starter Categories Initialization
-    print("\n[Step 3] Initializing User A profile and starter categories...")
-    status, body = call_reducer(token_a, "initialize_user_profile", ["User A", "ZAR", 1])
-    print(f"  initialize_user_profile status: {status}")
+    # 3. User Profile Initialization & Clamping
+    print("\n[Step 3] Initializing User A profile with out-of-range payday anchor (day 31)...")
+    status, body = call_reducer(token_a, "initialize_user_profile", ["User A", "ZAR", 31])
     assert 200 <= status < 300, f"Failed to initialize User A profile: {body}"
 
-    # Verify User A can see their starter categories via my_categories view
+    status, profile_rows_a = run_sql(token_a, "SELECT * FROM my_profile;")
+    assert len(profile_rows_a) == 1, "User A profile must exist"
+    billing_cycle_day = profile_rows_a[0][3]
+    print(f"  Profile payday day clamped to: {billing_cycle_day}")
+    assert billing_cycle_day == 28, f"Day 31 must be clamped to 28, got {billing_cycle_day}"
+
+    # Verify 5 starter categories seeded
     status, cat_rows_a = run_sql(token_a, "SELECT * FROM my_categories;")
-    print(f"  User A categories count: {len(cat_rows_a)}")
-    assert len(cat_rows_a) >= 5, "User A must have 5 seeded starter categories"
+    print(f"  User A starter categories count: {len(cat_rows_a)}")
+    assert len(cat_rows_a) == 5, "User A must have 5 seeded starter categories"
 
-    # Verify User B cannot see User A's categories
+    # Verify User B cannot see User A's profile or categories
+    status, profile_rows_b = run_sql(token_b, "SELECT * FROM my_profile;")
+    assert len(profile_rows_b) == 0, "User B must not see User A's profile"
     status, cat_rows_b = run_sql(token_b, "SELECT * FROM my_categories;")
-    print(f"  User B categories count (before init): {len(cat_rows_b)}")
-    assert len(cat_rows_b) == 0, "User B must not see any categories before initializing"
-    print("  ✓ my_categories view enforces complete caller isolation")
+    assert len(cat_rows_b) == 0, "User B must not see User A's categories"
+    print("  ✓ User profile & starter categories verified with caller isolation")
 
-    # 4. Personal Expense Isolation Verification
-    print("\n[Step 4] Logging personal expense for User A...")
-    cat_a_id = cat_rows_a[0][0]
-    spent_millis = int(time.time() * 1000)
-    status, body = call_reducer(token_a, "log_expense", [15000, "ZAR", cat_a_id, "Apple Pay", "Lunch Bowl", spent_millis])
-    assert 200 <= status < 300, f"Failed to log expense for User A: {body}"
+    # 4. Profile Updating
+    print("\n[Step 4] Updating User A profile (payday to 25th, name to 'Jordan')...")
+    status, body = call_reducer(token_a, "update_user_profile", ["Jordan", 25])
+    assert 200 <= status < 300, f"Failed to update User A profile: {body}"
 
-    # Verify User A sees 1 expense
-    status, exp_rows_a = run_sql(token_a, "SELECT * FROM my_expenses;")
-    print(f"  User A my_expenses count: {len(exp_rows_a)}")
-    assert len(exp_rows_a) >= 1, "User A must see their logged personal expense"
+    status, profile_rows_a = run_sql(token_a, "SELECT * FROM my_profile;")
+    assert profile_rows_a[0][1] == "Jordan", f"Display name mismatch: {profile_rows_a[0][1]}"
+    assert profile_rows_a[0][3] == 25, f"Billing cycle day mismatch: {profile_rows_a[0][3]}"
+    print("  ✓ Profile update successfully applied")
 
-    # Verify User B sees 0 expenses
-    status, exp_rows_b = run_sql(token_b, "SELECT * FROM my_expenses;")
-    print(f"  User B my_expenses count: {len(exp_rows_b)}")
-    assert len(exp_rows_b) == 0, "User B must NOT see User A's personal expense"
-    print("  ✓ Personal expense isolation verified between User A and User B")
-
-    # 5. Couple Space Invitation & Shared Expense Sync
-    print("\n[Step 5] Creating Couple Space and joining Partner B...")
-    status, body = call_reducer(token_a, "create_couple_space", ["Tandem Home", 50, 50])
-    assert 200 <= status < 300, f"Failed to create couple space: {body}"
-
-    # Fetch couple space and invite code
-    status, space_rows = run_sql(token_a, "SELECT * FROM my_couple_space;")
-    assert len(space_rows) > 0, "User A must have active couple space"
-    space_id = space_rows[0][0]
-    print(f"  Created Couple Space ID: {space_id}")
-
-    # Initialize User B profile so B can participate
-    call_reducer(token_b, "initialize_user_profile", ["User B", "ZAR", 1])
-
-    # Log couple expense from User A
+    # 5. Custom Envelope Category Lifecycle (Create, Update, Archive)
+    print("\n[Step 5] Testing Category Envelope lifecycle (Create, Update, Archive)...")
     status, body = call_reducer(
         token_a,
-        "log_couple_expense",
-        [space_id, 45000, "ZAR", cat_a_id, "Credit Card", "Shared Groceries", spent_millis, "EQUAL"]
+        "create_category",
+        ["Tech Subscriptions", "laptopcomputer", "#6366F1", {"some": 50000}]
     )
-    assert 200 <= status < 300, f"Failed to log couple expense: {body}"
+    assert 200 <= status < 300, f"Failed to create category: {body}"
 
-    # Before joining, User B should still not see User A's couple expense
-    status, exp_rows_b = run_sql(token_b, "SELECT * FROM my_expenses;")
-    assert len(exp_rows_b) == 0, "Unjoined User B should not see couple expense"
+    status, cat_rows_a = run_sql(token_a, "SELECT * FROM my_categories;")
+    assert len(cat_rows_a) == 6, f"Expected 6 categories, found {len(cat_rows_a)}"
+    tech_cat = [c for c in cat_rows_a if c[2] == "Tech Subscriptions"][0]
+    tech_cat_id = tech_cat[0]
 
-    print("  ✓ Couple space and expense successfully created")
+    # Update category
+    status, body = call_reducer(
+        token_a,
+        "update_category",
+        [tech_cat_id, "Cloud & Tech", "cloud.fill", "#4F46E5", {"some": 75000}]
+    )
+    assert 200 <= status < 300, f"Failed to update category: {body}"
 
-    # 6. Soft-Delete Verification
-    print("\n[Step 6] Verifying soft-delete filtering in my_expenses...")
+    status, cat_rows_a = run_sql(token_a, "SELECT * FROM my_categories;")
+    updated_cat = [c for c in cat_rows_a if c[0] == tech_cat_id][0]
+    assert updated_cat[2] == "Cloud & Tech", f"Category name not updated: {updated_cat[2]}"
+    print("  ✓ Category updated successfully")
+
+    # User B unauthorized attempt to update User A's category
+    status, body = call_reducer(
+        token_b,
+        "update_category",
+        [tech_cat_id, "Hacked Category", "exclamationmark.triangle", "#FF0000", {"none": []}]
+    )
+    assert status >= 400 or "Unauthorized" in body, "User B must not be able to update User A's category"
+    print("  ✓ Cross-user category modification forbidden")
+
+    # Archive category
+    status, body = call_reducer(token_a, "archive_category", [tech_cat_id])
+    assert 200 <= status < 300, f"Failed to archive category: {body}"
+
+    status, cat_rows_a = run_sql(token_a, "SELECT * FROM my_categories;")
+    archived_found = any(c[0] == tech_cat_id for c in cat_rows_a)
+    assert not archived_found, "Archived category must be hidden from my_categories view"
+    print("  ✓ Category archive successfully filtered out of active views")
+
+    # 6. Expense CRUD, Soft-Delete & Restore Lifecycle
+    print("\n[Step 6] Testing Expense CRUD, Soft-Delete & Restore...")
+    groceries_cat_id = cat_rows_a[0][0]
+    spent_millis = int(time.time() * 1000)
+    status, body = call_reducer(
+        token_a,
+        "log_expense",
+        [2499, "ZAR", groceries_cat_id, "Apple Pay", "Organic Milk", spent_millis]
+    )
+    assert 200 <= status < 300, f"Failed to log expense: {body}"
+
+    status, exp_rows_a = run_sql(token_a, "SELECT * FROM my_expenses;")
+    assert len(exp_rows_a) >= 1, "User A must see logged expense"
     exp_id = exp_rows_a[0][0]
+
+    # Update expense
+    status, body = call_reducer(
+        token_a,
+        "update_expense",
+        [exp_id, 2999, "ZAR", groceries_cat_id, "Apple Pay", "Organic Oat Milk", spent_millis, "PERSONAL"]
+    )
+    assert 200 <= status < 300, f"Failed to update expense: {body}"
+
+    # Soft delete expense
     status, body = call_reducer(token_a, "soft_delete_expense", [exp_id])
     assert 200 <= status < 300, f"Failed to soft delete expense: {body}"
 
-    # User A my_expenses should now not include the soft-deleted personal expense
-    status, exp_rows_a_after = run_sql(token_a, "SELECT * FROM my_expenses;")
-    deleted_ids = [e[0] for e in exp_rows_a_after]
-    assert exp_id not in deleted_ids, "Soft-deleted expense must be excluded from my_expenses"
-    print("  ✓ Soft-deleted expense successfully excluded from client view queries")
+    status, exp_rows_a = run_sql(token_a, "SELECT * FROM my_expenses;")
+    assert not any(e[0] == exp_id for e in exp_rows_a), "Soft-deleted expense must be excluded from my_expenses"
+    print("  ✓ Expense soft-deleted and excluded from active view")
+
+    # Restore expense (5-second transient undo backend capability)
+    status, body = call_reducer(token_a, "restore_expense", [exp_id])
+    assert 200 <= status < 300, f"Failed to restore expense: {body}"
+
+    status, exp_rows_a = run_sql(token_a, "SELECT * FROM my_expenses;")
+    assert any(e[0] == exp_id for e in exp_rows_a), "Restored expense must reappear in my_expenses"
+    print("  ✓ Expense restored and reappears in active view")
+
+    # 7. Couple Space and Cross-User Isolation
+    print("\n[Step 7] Verifying Couple Space and Cross-User Sharing Isolation...")
+    status, body = call_reducer(token_a, "create_couple_space", ["Tandem Home", 60, 40])
+    assert 200 <= status < 300, f"Failed to create couple space: {body}"
+
+    status, space_rows = run_sql(token_a, "SELECT * FROM my_couple_space;")
+    assert len(space_rows) > 0, "User A must have active couple space"
+    space_id = space_rows[0][0]
+
+    # User B initializes profile
+    call_reducer(token_b, "initialize_user_profile", ["User B", "ZAR", 15])
+
+    # User A logs couple expense
+    status, body = call_reducer(
+        token_a,
+        "log_couple_expense",
+        [space_id, 50000, "ZAR", groceries_cat_id, "Credit Card", "Weekly Dinner", spent_millis, "PROPORTIONAL"]
+    )
+    assert 200 <= status < 300, f"Failed to log couple expense: {body}"
+
+    # User B should NOT see couple expense before joining
+    status, exp_rows_b = run_sql(token_b, "SELECT * FROM my_expenses;")
+    assert len(exp_rows_b) == 0, "Unjoined partner must not see couple expenses"
 
     print("\n" + "=" * 60)
-    print("🎉 ALL SECURITY & MULTI-USER ISOLATION TESTS PASSED SUCCESSFULLY!")
+    print("🎉 ALL SINGLE-PLAYER & BACKEND ENGINE TESTS PASSED SUCCESSFULLY!")
     print("=" * 60)
 
 if __name__ == "__main__":
     run_tests()
+

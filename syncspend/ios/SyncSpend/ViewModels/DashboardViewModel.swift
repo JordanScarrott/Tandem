@@ -34,6 +34,8 @@ public final class DashboardViewModel {
     ]
     
     // Data State
+    public var userProfile: UserProfileItem?
+    public var needsOnboarding: Bool = false
     public var accounts: [AccountItem] = AccountItem.defaultAccounts
     public var activeAccountId: String = "acc-personal"
     public var categories: [CategoryItem] = []
@@ -70,6 +72,41 @@ public final class DashboardViewModel {
         expenses.filter { exp in
             (exp.accountId ?? "acc-personal") == activeAccountId
         }
+    }
+    
+    // Payday Cycle & Envelope Computations
+    public var currentPaydayCycle: PaydayCycle {
+        let day = userProfile?.billingCycleStartDay ?? 1
+        return PaydayCycle.current(billingCycleStartDay: day)
+    }
+    
+    public var cycleExpenses: [ExpenseItem] {
+        let cycle = currentPaydayCycle
+        return accountExpenses.filter { exp in
+            cycle.contains(date: exp.spentDate)
+        }
+    }
+    
+    public var envelopeStatuses: [CategoryEnvelopeStatus] {
+        let cycleExps = cycleExpenses
+        return categories.map { cat in
+            let spent = cycleExps
+                .filter { $0.categoryId == cat.id }
+                .reduce(0) { $0 + $1.amountCents }
+            return CategoryEnvelopeStatus(category: cat, spentCents: spent)
+        }
+    }
+    
+    public var cycleTotalSpentCents: Int64 {
+        cycleExpenses.reduce(0) { $0 + $1.amountCents }
+    }
+    
+    public var cycleTotalBudgetCents: Int64 {
+        categories.compactMap(\.monthlyBudgetCents).reduce(0, +)
+    }
+    
+    public var overspentEnvelopeCount: Int {
+        envelopeStatuses.filter(\.isOverspent).count
     }
     
     public var isFilterActive: Bool {
@@ -320,18 +357,29 @@ public final class DashboardViewModel {
     
     public func refreshAll() async {
         isLoading = true
+        await loadUserProfile()
         await loadCategories()
         await loadExpenses()
         isLoading = false
     }
+
+    public func loadUserProfile() async {
+        do {
+            if let profile = try await service.fetchUserProfile() {
+                self.userProfile = profile
+                self.needsOnboarding = false
+            } else {
+                self.userProfile = nil
+                self.needsOnboarding = true
+            }
+        } catch {
+            print("DashboardViewModel: Failed to fetch user profile: \(error)")
+        }
+    }
     
     public func loadCategories() async {
         do {
-            var fetched = try await service.fetchCategories()
-            if fetched.isEmpty {
-                try await service.initializeUserProfile()
-                fetched = try await service.fetchCategories()
-            }
+            let fetched = try await service.fetchCategories()
             self.categories = fetched
         } catch {
             print("DashboardViewModel: Failed to load categories: \(error)")
@@ -348,7 +396,8 @@ public final class DashboardViewModel {
     }
     
     public func deleteExpense(_ item: ExpenseItem) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        Haptics.notification(.warning)
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             expenses.removeAll(where: { $0.id == item.id })
             lastDeletedExpense = item
             showingUndoBar = true
@@ -356,7 +405,7 @@ public final class DashboardViewModel {
         
         undoTimer?.invalidate()
         undoTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            withAnimation {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 self?.showingUndoBar = false
                 self?.lastDeletedExpense = nil
             }
@@ -374,8 +423,14 @@ public final class DashboardViewModel {
     
     public func undoDelete(_ item: ExpenseItem) {
         undoTimer?.invalidate()
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        Haptics.notification(.success)
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             showingUndoBar = false
+            if !expenses.contains(where: { $0.id == item.id }) {
+                expenses.append(item)
+                expenses.sort(by: { $0.spentAtMillis > $1.spentAtMillis })
+            }
         }
         
         Task {

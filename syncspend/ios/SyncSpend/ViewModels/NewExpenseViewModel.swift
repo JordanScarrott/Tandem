@@ -31,7 +31,12 @@ public final class NewExpenseViewModel {
     }
     
     public var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty && parsedCents > 0 && selectedCategoryId != nil
+        parsedCents > 0 && selectedCategoryId != nil
+    }
+    
+    public func formattedAmount(currencySymbol: String = "R") -> String {
+        let rands = Double(parsedCents) / 100.0
+        return String(format: "%@ %.2f", currencySymbol, rands)
     }
     
     public func populate(with expense: ExpenseItem) {
@@ -53,10 +58,18 @@ public final class NewExpenseViewModel {
         }
     }
     
-    public func saveExpense(currencyCode: String = "ZAR", accountId: String = "acc-personal") async -> Bool {
+    public func saveExpense(
+        categories: [CategoryItem] = [],
+        currencyCode: String = "ZAR",
+        accountId: String = "acc-personal"
+    ) async -> Bool {
         guard canSave, let catId = selectedCategoryId else { return false }
         isSubmitting = true
         errorMessage = nil
+        
+        let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
+        let categoryName = categories.first(where: { $0.id == catId })?.name ?? "Expense"
+        let finalNote = trimmedTitle.isEmpty ? categoryName : trimmedTitle
         
         do {
             if let expId = editingExpenseId {
@@ -66,7 +79,7 @@ public final class NewExpenseViewModel {
                     currency: currencyCode,
                     categoryId: catId,
                     paymentMethod: selectedPaymentMethod,
-                    note: title.trimmingCharacters(in: .whitespaces),
+                    note: finalNote,
                     spentDate: spentDate,
                     splitMode: selectedSplitMode
                 )
@@ -76,7 +89,7 @@ public final class NewExpenseViewModel {
                     currency: currencyCode,
                     categoryId: catId,
                     paymentMethod: selectedPaymentMethod,
-                    note: title.trimmingCharacters(in: .whitespaces),
+                    note: finalNote,
                     spentDate: spentDate
                 )
             }

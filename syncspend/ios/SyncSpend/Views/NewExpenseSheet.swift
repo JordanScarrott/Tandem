@@ -46,231 +46,294 @@ public struct NewExpenseSheet: View {
     
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Inset Form Container
-                    VStack(spacing: 0) {
-                        // Title Row
-                        HStack {
-                            TextField("Title (e.g. Lunch with team)", text: $viewModel.title)
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundStyle(Theme.primaryDark)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        
-                        Divider()
-                            .padding(.leading, 16)
-                        
-                        // Amount Row
-                        HStack {
-                            Text("Amount")
-                                .font(.system(size: 15, weight: .regular))
-                                .foregroundStyle(Theme.primaryDark)
-                            
-                            Spacer()
-                            
-                            HStack(spacing: 4) {
-                                Text(currency.code)
-                                    .font(.system(size: 14, weight: .medium))
+            ZStack(alignment: .bottom) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // 1. Hero Amount & Note Card
+                        VStack(spacing: 12) {
+                            // Amount Entry Header
+                            VStack(spacing: 4) {
+                                Text("AMOUNT")
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(Theme.mutedText)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 
-                                TextField("0.00", text: $viewModel.amountInput)
-                                    .focused($isAmountFocused)
-                                    .keyboardType(.decimalPad)
-                                    .multilineTextAlignment(.trailing)
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(Theme.primaryDark)
-                                    .frame(maxWidth: 130)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        
-                        Divider()
-                            .padding(.leading, 16)
-                        
-                        // Category Row (Native iOS Menu Dropdown)
-                        Menu {
-                            ForEach(categories) { cat in
-                                Button {
-                                    Haptics.selection()
-                                    viewModel.selectedCategoryId = cat.id
-                                } label: {
-                                    if viewModel.selectedCategoryId == cat.id {
-                                        Label(cat.name, systemImage: "checkmark")
-                                    } else {
-                                        Text(cat.name)
-                                    }
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(currency.symbol)
+                                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Theme.mutedText)
+                                    
+                                    TextField("0.00", text: $viewModel.amountInput)
+                                        .focused($isAmountFocused)
+                                        .keyboardType(.decimalPad)
+                                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Theme.primaryDark)
+                                        .minimumScaleFactor(0.7)
                                 }
                             }
                             
                             Divider()
                             
-                            Button {
-                                showingAddCategory = true
-                            } label: {
-                                Label("Add Custom Category...", systemImage: "plus")
-                            }
-                        } label: {
-                            HStack {
-                                Text("Category")
-                                    .font(.system(size: 15, weight: .regular))
+                            // Note Field Immediately Below
+                            HStack(spacing: 10) {
+                                Image(systemName: "pencil.line")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(Theme.mutedText)
+                                
+                                let placeholderText = "Note (defaults to \(selectedCategory?.name ?? "category"))"
+                                TextField(placeholderText, text: $viewModel.title)
+                                    .font(.system(size: 15, weight: .medium))
                                     .foregroundStyle(Theme.primaryDark)
                                 
-                                Spacer()
-                                
-                                HStack(spacing: 6) {
-                                    if let cat = selectedCategory {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: cat.icon)
-                                                .font(.system(size: 12))
-                                                .foregroundStyle(cat.color)
-                                            Text(cat.name)
-                                                .font(.system(size: 15, weight: .medium))
-                                                .foregroundStyle(Theme.primaryDark)
-                                        }
-                                    } else {
-                                        Text("Select")
-                                            .font(.system(size: 15, weight: .regular))
+                                if !viewModel.title.isEmpty {
+                                    Button {
+                                        viewModel.title = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
                                             .foregroundStyle(Theme.mutedText)
                                     }
-                                    
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundStyle(Theme.mutedText)
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .contentShape(Rectangle())
+                            .padding(.vertical, 2)
                         }
+                        .padding(18)
+                        .background(Theme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 2)
                         
-                        Divider()
-                            .padding(.leading, 16)
-                        
-                        // Payment Row (Native iOS Menu Dropdown)
-                        Menu {
-                            ForEach(DashboardViewModel.defaultPaymentMethods, id: \.self) { method in
-                                Button {
-                                    Haptics.selection()
-                                    viewModel.selectedPaymentMethod = method
-                                } label: {
-                                    if viewModel.selectedPaymentMethod == method {
-                                        Label(method, systemImage: "checkmark")
-                                    } else {
-                                        Text(method)
-                                    }
-                                }
-                            }
-                        } label: {
+                        // 2. Dual Wheel Rollers (Category & Payment Method)
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("Payment")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .foregroundStyle(Theme.primaryDark)
+                                Text("QUICK ENVELOPE & PAYMENT SELECTION")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Theme.mutedText)
                                 
                                 Spacer()
                                 
-                                HStack(spacing: 6) {
-                                    Text(viewModel.selectedPaymentMethod)
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundStyle(Theme.primaryDark)
-                                    
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundStyle(Theme.mutedText)
+                                Button {
+                                    showingAddCategory = true
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 12))
+                                        Text("New Envelope")
+                                            .font(.system(size: 12, weight: .semibold))
+                                    }
+                                    .foregroundStyle(Theme.accentBlue)
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .contentShape(Rectangle())
-                        }
-                        
-                        Divider()
-                            .padding(.leading, 16)
-                        
-                        // Date Row
-                        HStack {
-                            Text("Date")
-                                .font(.system(size: 15, weight: .regular))
-                                .foregroundStyle(Theme.primaryDark)
+                            .padding(.horizontal, 4)
                             
-                            Spacer()
-                            
-                            Button {
-                                isAmountFocused = false
-                                showingDatePicker = true
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "calendar")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Theme.mutedText)
+                            HStack(spacing: 8) {
+                                // Category Wheel Column
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 6) {
+                                        if let cat = selectedCategory {
+                                            Image(systemName: cat.icon)
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(cat.color)
+                                        }
+                                        Text("Category")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(Theme.primaryDark)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.top, 8)
                                     
-                                    Text(formattedDateString)
+                                    Picker("Category", selection: $viewModel.selectedCategoryId) {
+                                        ForEach(categories) { cat in
+                                            HStack(spacing: 8) {
+                                                Image(systemName: cat.icon)
+                                                    .foregroundStyle(cat.color)
+                                                Text(cat.name)
+                                                    .font(.system(size: 14, weight: .medium))
+                                            }
+                                            .tag(Optional(cat.id))
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(height: 110)
+                                    .clipped()
+                                    .onChange(of: viewModel.selectedCategoryId) { _, _ in
+                                        Haptics.selection()
+                                    }
+                                }
+                                .background(Theme.tertiaryBackground.opacity(0.6))
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                
+                                // Payment Method Wheel Column
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "creditcard.fill")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(Theme.accentBlue)
+                                        Text("Payment")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(Theme.primaryDark)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.top, 8)
+                                    
+                                    Picker("Payment Method", selection: $viewModel.selectedPaymentMethod) {
+                                        ForEach(DashboardViewModel.defaultPaymentMethods, id: \.self) { method in
+                                            Text(method)
+                                                .font(.system(size: 14, weight: .medium))
+                                                .tag(method)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(height: 110)
+                                    .clipped()
+                                    .onChange(of: viewModel.selectedPaymentMethod) { _, _ in
+                                        Haptics.selection()
+                                    }
+                                }
+                                .background(Theme.tertiaryBackground.opacity(0.6))
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            }
+                        }
+                        .padding(14)
+                        .background(Theme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                        )
+                        
+                        // 3. Date & Split Mode Row
+                        VStack(spacing: 12) {
+                            HStack {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Theme.accentBlue)
+                                    Text("Date")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundStyle(Theme.primaryDark)
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Theme.chipBackground)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                
+                                Spacer()
+                                
+                                Button {
+                                    isAmountFocused = false
+                                    showingDatePicker = true
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text(formattedDateString)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(Theme.primaryDark)
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(Theme.mutedText)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Theme.chipBackground)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                    }
-                    .background(Theme.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(Theme.cardBorder, lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 2)
-                    
-                    // Split Mode Selector (Couple / Partner Split)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("SPLIT MODE")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Theme.mutedText)
-                            .padding(.horizontal, 4)
-                        
-                        Picker("Split Mode", selection: $viewModel.selectedSplitMode) {
-                            Text("Personal").tag("PERSONAL")
-                            Text("50/50 Equal").tag("EQUAL")
-                            Text("Proportional").tag("PROPORTIONAL")
-                            Text("For Partner").tag("PAID_FOR_PARTNER")
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: viewModel.selectedSplitMode) { _, _ in
-                            Haptics.selection()
-                        }
-                    }
-                    .padding(.horizontal, 2)
-                    
-                    // Smart Suggestions
-                    if smartSuggestionsEnabled && !viewModel.isEditing {
-                        SmartSuggestionsView(
-                            currencySymbol: currency.symbol,
-                            categories: categories,
-                            onSelect: { title, amount, catId in
-                                viewModel.applySuggestion(title: title, amountString: amount, categoryId: catId)
+                            
+                            Divider()
+                            
+                            // Split Mode Segment
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("SPLIT MODE")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Theme.mutedText)
+                                
+                                Picker("Split Mode", selection: $viewModel.selectedSplitMode) {
+                                    Text("Personal").tag("PERSONAL")
+                                    Text("50/50 Equal").tag("EQUAL")
+                                    Text("Proportional").tag("PROPORTIONAL")
+                                    Text("Partner").tag("PAID_FOR_PARTNER")
+                                }
+                                .pickerStyle(.segmented)
+                                .onChange(of: viewModel.selectedSplitMode) { _, _ in
+                                    Haptics.selection()
+                                }
                             }
+                        }
+                        .padding(14)
+                        .background(Theme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                .strokeBorder(Theme.cardBorder, lineWidth: 1)
                         )
+                        
+                        // 4. Smart Suggestions (if enabled)
+                        if smartSuggestionsEnabled && !viewModel.isEditing {
+                            SmartSuggestionsView(
+                                currencySymbol: currency.symbol,
+                                categories: categories,
+                                onSelect: { title, amount, catId in
+                                    viewModel.applySuggestion(title: title, amountString: amount, categoryId: catId)
+                                }
+                            )
+                        }
+                        
+                        if let err = viewModel.errorMessage {
+                            Text(err)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Theme.accentRed)
+                                .padding(.horizontal, 4)
+                        }
+                        
+                        // Bottom spacer to ensure scrolling clears the fixed bottom action button
+                        Spacer()
+                            .frame(height: 80)
                     }
-                    
-                    if let err = viewModel.errorMessage {
-                        Text(err)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Theme.accentRed)
-                            .padding(.horizontal, 4)
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
                 }
-                .padding(16)
+                .scrollDismissesKeyboard(.interactively)
+                
+                // 5. Thumb-Reachable Floating / Docked Confirmation CTA
+                VStack(spacing: 0) {
+                    Divider()
+                    
+                    HStack {
+                        Button {
+                            submitExpense()
+                        } label: {
+                            HStack(spacing: 8) {
+                                if viewModel.isSubmitting {
+                                    ProgressView()
+                                        .tint(Theme.buttonForeground)
+                                } else {
+                                    Image(systemName: viewModel.isEditing ? "checkmark.circle.fill" : "plus.circle.fill")
+                                        .font(.system(size: 18, weight: .bold))
+                                    
+                                    if viewModel.parsedCents > 0 {
+                                        Text(viewModel.isEditing ? "Save Changes • \(viewModel.formattedAmount(currencySymbol: currency.symbol))" : "Add Expense • \(viewModel.formattedAmount(currencySymbol: currency.symbol))")
+                                            .font(.system(size: 16, weight: .bold))
+                                    } else {
+                                        Text(viewModel.isEditing ? "Save Changes" : "Enter Amount to Log")
+                                            .font(.system(size: 16, weight: .bold))
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(viewModel.canSave ? Theme.primaryDark : Theme.primaryDark.opacity(0.4))
+                            .foregroundStyle(Theme.buttonForeground)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.buttonCornerRadius, style: .continuous))
+                            .shadow(color: Color.black.opacity(viewModel.canSave ? 0.15 : 0), radius: 8, x: 0, y: 4)
+                        }
+                        .disabled(!viewModel.canSave || viewModel.isSubmitting)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Theme.cardBackground.ignoresSafeArea())
+                }
             }
-            .scrollDismissesKeyboard(.interactively)
             .background(Theme.appBackground)
-            .navigationTitle(viewModel.isEditing ? "Edit Expense" : "New Expense")
+            .navigationTitle(viewModel.isEditing ? "Edit Expense" : "Rapid Expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -280,31 +343,6 @@ public struct NewExpenseSheet: View {
                     .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(Theme.accentBlue)
                 }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        Task {
-                            let success = await viewModel.saveExpense(
-                                currencyCode: currency.code,
-                                accountId: accountId
-                            )
-                            if success {
-                                Haptics.notification(.success)
-                                onExpenseSaved()
-                                dismiss()
-                            }
-                        }
-                    } label: {
-                        if viewModel.isSubmitting {
-                            ProgressView()
-                        } else {
-                            Text(viewModel.isEditing ? "Save Changes" : "Save")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(viewModel.canSave ? Theme.accentBlue : Theme.mutedText)
-                        }
-                    }
-                    .disabled(!viewModel.canSave || viewModel.isSubmitting)
-                }
             }
             .presentationDragIndicator(.visible)
             .sheet(isPresented: $showingDatePicker) {
@@ -313,7 +351,7 @@ public struct NewExpenseSheet: View {
             }
             .sheet(isPresented: $showingAddCategory) {
                 AddCategorySheet {
-                    // Category created
+                    // Category added
                 }
             }
             .onAppear {
@@ -323,7 +361,7 @@ public struct NewExpenseSheet: View {
                     if viewModel.selectedCategoryId == nil {
                         viewModel.selectedCategoryId = categories.first?.id
                     }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         if viewModel.amountInput.isEmpty {
                             isAmountFocused = true
                         }
@@ -332,6 +370,20 @@ public struct NewExpenseSheet: View {
             }
         }
     }
-
+    
+    private func submitExpense() {
+        Haptics.impact(.medium)
+        Task {
+            let success = await viewModel.saveExpense(
+                categories: categories,
+                currencyCode: currency.code,
+                accountId: accountId
+            )
+            if success {
+                Haptics.notification(.success)
+                onExpenseSaved()
+                dismiss()
+            }
+        }
+    }
 }
-

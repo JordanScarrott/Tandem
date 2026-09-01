@@ -33,7 +33,7 @@ A complete, frictionless **Single-Player Budgeting and Category Envelope Experie
 
 ## User Stories & Ticket Breakdown
 
-### [TICKET-SP-01] Backend: Profile, Envelopes & Soft-Delete Engine (Rust)
+### [TICKET-SP-01] [COMPLETED] Backend: Profile, Envelopes & Soft-Delete Engine (Rust)
 - **User Story**: As a user, I want my profile initialized with my payday anchor, 5 starter envelopes automatically generated, and full CRUD + soft-delete/restore capabilities for expenses.
 - **Table Schemas (`server/src/lib.rs`)**:
   ```rust
@@ -99,7 +99,7 @@ A complete, frictionless **Single-Player Budgeting and Category Envelope Experie
 
 ---
 
-### [TICKET-SP-02] iOS: First-Run Onboarding Modal & Settings Payday Configuration
+### [TICKET-SP-02] [COMPLETED] iOS: First-Run Onboarding Modal & Settings Payday Configuration
 - **User Story**: As a new user, I want a clean onboarding screen to set my name and payday (with a skip button), and ability to adjust my payday anchor anytime in Settings.
 - **Scope**:
   - `OnboardingPaydaySheet.swift`: Greeting, name input, payday day picker (1–28), "Start Budgeting" CTA, and "Skip for now" button.
@@ -108,7 +108,7 @@ A complete, frictionless **Single-Player Budgeting and Category Envelope Experie
 
 ---
 
-### [TICKET-SP-03] iOS: High-Velocity Rapid Expense Sheet (Wheel Picker & Auto-Defaults)
+### [TICKET-SP-03] [COMPLETED] iOS: High-Velocity Rapid Expense Sheet (Wheel Picker & Auto-Defaults)
 - **User Story**: As a user logging an expense on the go, I want to type the amount, optionally add a note, slide through wheel pickers for category/method, and tap a bottom button to log in under 3 seconds.
 - **Scope**:
   - `NewExpenseSheet.swift` redesign:
@@ -120,7 +120,7 @@ A complete, frictionless **Single-Player Budgeting and Category Envelope Experie
 
 ---
 
-### [TICKET-SP-04] iOS: Payday-Cycle Category Envelope Dashboard & Overspend Indicators
+### [TICKET-SP-04] [COMPLETED] iOS: Payday-Cycle Category Envelope Dashboard & Overspend Indicators
 - **User Story**: As a user reviewing my budget, I want to see how much I've spent vs. my monthly envelope limit for the current payday cycle, with clear visual alerts if an envelope is over budget.
 - **Scope**:
   - Cycle calculation utility: Computes `[start_date, end_date]` for active payday window.
@@ -129,12 +129,12 @@ A complete, frictionless **Single-Player Budgeting and Category Envelope Experie
 
 ---
 
-### [TICKET-SP-05] iOS: Swipe-to-Delete & 5-Second Haptic Floating Undo Bar
+### [TICKET-SP-05] [COMPLETED] iOS: Swipe-to-Delete & 5-Second Haptic Floating Undo Bar
 - **User Story**: As a user who accidentally deleted a transaction, I want a 5-second transient floating bar with an "Undo" button to restore it immediately.
 - **Scope**:
   - `TransactionRowView.swift`: Swipe action to delete triggering `soft_delete_expense`.
-  - `UndoToastOverlay.swift`: Global floating banner appearing on delete with a 5-second progress timer and "Undo" tap target triggering `restore_expense`.
-  - Haptic feedback (`UINotificationFeedbackGenerator`) on deletion and restoration.
+  - `UndoFloatingBar.swift`: Global floating banner appearing on delete with a 5-second linear progress timer and "Undo" tap target triggering `restore_expense`.
+  - Haptic feedback (`Haptics.notification`) on deletion and restoration.
 
 ---
 
