@@ -40,5 +40,16 @@
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
     <string>SyncSpend connects to your local SpacetimeDB server for live expense synchronization.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.tandem.SyncSpend.auth</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>syncspend</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
