@@ -1,17 +1,21 @@
 import SwiftUI
+import UIKit
 
 public enum Theme {
-    // Colors
-    public static let appBackground = Color(hex: "#F2F2F7") ?? Color(.systemGroupedBackground)
-    public static let cardBackground = Color.white
-    public static let cardBorder = Color(hex: "#E5E5EA")?.opacity(0.7) ?? Color(.systemGray5)
-    public static let primaryDark = Color(hex: "#1C1C1E") ?? Color.primary
-    public static let mutedText = Color(hex: "#8E8E93") ?? Color.secondary
-    public static let subtleGray = Color(hex: "#E5E5EA") ?? Color(.systemGray6)
-    public static let buttonDark = Color(hex: "#1C1C1E") ?? Color.black
-    public static let accentBlue = Color(hex: "#007AFF") ?? Color.blue
-    public static let accentGreen = Color(hex: "#34C759") ?? Color.green
-    public static let accentRed = Color(hex: "#FF3B30") ?? Color.red
+    // Adaptive Semantic Colors
+    public static let appBackground = Color(uiColor: .systemGroupedBackground)
+    public static let cardBackground = Color(uiColor: .secondarySystemGroupedBackground)
+    public static let tertiaryBackground = Color(uiColor: .tertiarySystemGroupedBackground)
+    public static let cardBorder = Color(uiColor: .separator).opacity(0.35)
+    public static let primaryDark = Color(uiColor: .label)
+    public static let mutedText = Color(uiColor: .secondaryLabel)
+    public static let subtleGray = Color(uiColor: .systemGray5)
+    public static let chipBackground = Color(uiColor: .tertiarySystemFill)
+    public static let buttonDark = Color(uiColor: .label)
+    public static let buttonForeground = Color(uiColor: .systemBackground)
+    public static let accentBlue = Color.blue
+    public static let accentGreen = Color.green
+    public static let accentRed = Color.red
     
     // Spacing & Radii
     public static let cardCornerRadius: CGFloat = 24
@@ -21,7 +25,22 @@ public enum Theme {
     public static let squircleCornerRadius: CGFloat = 14
 }
 
+public enum Haptics {
+    public static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+    
+    public static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+    
+    public static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
+}
+
 public struct SyncSpendCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
     var padding: CGFloat = 16
     var cornerRadius: CGFloat = Theme.cardCornerRadius
     
@@ -34,7 +53,12 @@ public struct SyncSpendCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Theme.cardBorder, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.03), radius: 12, x: 0, y: 4)
+            .shadow(
+                color: colorScheme == .dark ? Color.black.opacity(0.35) : Color.black.opacity(0.04),
+                radius: colorScheme == .dark ? 8 : 12,
+                x: 0,
+                y: colorScheme == .dark ? 2 : 4
+            )
     }
 }
 
@@ -43,3 +67,4 @@ public extension View {
         modifier(SyncSpendCardModifier(padding: padding, cornerRadius: cornerRadius))
     }
 }
+

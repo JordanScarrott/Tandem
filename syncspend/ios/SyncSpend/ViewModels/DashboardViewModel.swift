@@ -9,9 +9,29 @@ public struct DaySpending: Identifiable {
     public let date: Date
 }
 
+public enum FilterPeriod: String, CaseIterable, Identifiable {
+    case today = "Today"
+    case thisWeek = "This Week"
+    case thisMonth = "This Month"
+    case thisYear = "This Year"
+    case allTime = "All Time"
+    
+    public var id: String { rawValue }
+    public var title: String { rawValue }
+}
+
 @Observable
 public final class DashboardViewModel {
     public var service = SpacetimeService.shared
+    
+    public static let defaultPaymentMethods = [
+        "Bank Transfer",
+        "Cash",
+        "Credit Card",
+        "Debit Card",
+        "E-Wallet",
+        "Apple Pay"
+    ]
     
     // Data State
     public var accounts: [AccountItem] = AccountItem.defaultAccounts
@@ -22,7 +42,9 @@ public final class DashboardViewModel {
     public var errorMessage: String?
     
     // Filtering & Preferences
+    public var selectedPeriod: FilterPeriod = .thisWeek
     public var selectedFilterCategoryId: UInt64? = nil
+    public var selectedPaymentMethod: String? = nil
     public var searchQuery: String = ""
     public var currency: CurrencyItem = CurrencyItem.defaultCurrency
     public var startWeekOn: String = "Sunday" // "Sunday" or "Monday"
@@ -50,53 +72,47 @@ public final class DashboardViewModel {
         }
     }
     
-    // Total spent this current week for active account
-    public var weeklyTotalCents: Int64 {
-        let calendar = Calendar.current
-        let now = Date()
-        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: now) else {
-            return accountExpenses.reduce(0) { $0 + $1.amountCents }
-        }
-        
-        return accountExpenses
-            .filter { exp in
-                let date = exp.spentDate
-                return date >= weekInterval.start && date < weekInterval.end
-            }
-            .reduce(0) { $0 + $1.amountCents }
+    public var isFilterActive: Bool {
+        selectedFilterCategoryId != nil || (selectedPaymentMethod != nil && selectedPaymentMethod != "All") || selectedPeriod != .thisWeek
     }
     
-    // 7-Day Chart Data for current week
-    public var weeklyChartData: [DaySpending] {
-        let calendar = Calendar.current
-        let daySymbols = startWeekOn == "Sunday"
-            ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-            : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        
-        var totals: [String: Int64] = [:]
-        for sym in daySymbols { totals[sym] = 0 }
-        
-        let now = Date()
-        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: now) else {
-            return daySymbols.map { DaySpending(day: $0, amountCents: 0, date: Date()) }
+    public var activeFilterDescription: String {
+        var parts: [String] = []
+        if selectedPeriod != .thisWeek {
+            parts.append(selectedPeriod.title)
         }
-        
-        for exp in accountExpenses {
-            if exp.spentDate >= weekInterval.start && exp.spentDate < weekInterval.end {
-                let weekday = calendar.component(.weekday, from: exp.spentDate)
-                // Calendar weekday: 1 = Sunday, 7 = Saturday
-                let sym = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday - 1]
-                totals[sym, default: 0] += exp.amountCents
-            }
+        if let catId = selectedFilterCategoryId, let cat = categoryFor(id: catId) {
+            parts.append(cat.name)
         }
-        
-        return daySymbols.map { sym in
-            DaySpending(day: sym, amountCents: totals[sym] ?? 0, date: Date())
+        if let method = selectedPaymentMethod, method != "All" {
+            parts.append(method)
+        }
+        return parts.joined(separator: ", ")
+    }
+    
+    public func clearAllFilters() {
+        selectedFilterCategoryId = nil
+        selectedPaymentMethod = nil
+        selectedPeriod = .thisWeek
+    }
+
+    public var periodTitle: String {
+        switch selectedPeriod {
+        case .today:
+            return "Spent today"
+        case .thisWeek:
+            return "Spent this week"
+        case .thisMonth:
+            return "Spent this month"
+        case .thisYear:
+            return "Spent this year"
+        case .allTime:
+            return "Total spent"
         }
     }
     
-    // Grouped expenses by Day Name / Date
-    public var groupedExpenses: [(key: String, expenses: [ExpenseItem])] {
+    // Base expenses filtered by active account, search query, category, and payment method
+    public var baseFilteredExpenses: [ExpenseItem] {
         var filtered = accountExpenses
         
         if !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -111,9 +127,173 @@ public final class DashboardViewModel {
             filtered = filtered.filter { $0.categoryId == catId }
         }
         
-        // Group by calendar day string (e.g. "Friday, 28 August")
+        if let method = selectedPaymentMethod, !method.isEmpty, method != "All" {
+            filtered = filtered.filter { exp in
+                exp.paymentMethod.localizedCaseInsensitiveContains(method) ||
+                method.localizedCaseInsensitiveContains(exp.paymentMethod)
+            }
+        }
+        
+        return filtered
+    }
+    
+    // Expenses matching all active filters including period
+    public var filteredExpenses: [ExpenseItem] {
+        let calendar = Calendar.current
+        let now = Date()
+        let filtered = baseFilteredExpenses
+        
+        switch selectedPeriod {
+        case .today:
+            return filtered.filter { calendar.isDateInToday($0.spentDate) }
+        case .thisWeek:
+            guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: now) else { return filtered }
+            return filtered.filter { $0.spentDate >= weekInterval.start && $0.spentDate < weekInterval.end }
+        case .thisMonth:
+            guard let monthInterval = calendar.dateInterval(of: .month, for: now) else { return filtered }
+            return filtered.filter { $0.spentDate >= monthInterval.start && $0.spentDate < monthInterval.end }
+        case .thisYear:
+            guard let yearInterval = calendar.dateInterval(of: .year, for: now) else { return filtered }
+            return filtered.filter { $0.spentDate >= yearInterval.start && $0.spentDate < yearInterval.end }
+        case .allTime:
+            return filtered
+        }
+    }
+    
+    // Total spent for the selected period
+    public var periodTotalCents: Int64 {
+        filteredExpenses.reduce(0) { $0 + $1.amountCents }
+    }
+    
+    public var weeklyTotalCents: Int64 {
+        periodTotalCents
+    }
+    
+    // Dynamic Chart Data based on selectedPeriod
+    public var chartData: [DaySpending] {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch selectedPeriod {
+        case .today:
+            let timeLabels = ["12 AM", "6 AM", "12 PM", "6 PM"]
+            var totals: [String: Int64] = [:]
+            for label in timeLabels { totals[label] = 0 }
+            
+            let todayExpenses = baseFilteredExpenses.filter { calendar.isDateInToday($0.spentDate) }
+            for exp in todayExpenses {
+                let hour = calendar.component(.hour, from: exp.spentDate)
+                let bucketLabel: String
+                if hour < 6 {
+                    bucketLabel = "12 AM"
+                } else if hour < 12 {
+                    bucketLabel = "6 AM"
+                } else if hour < 18 {
+                    bucketLabel = "12 PM"
+                } else {
+                    bucketLabel = "6 PM"
+                }
+                totals[bucketLabel, default: 0] += exp.amountCents
+            }
+            return timeLabels.map { DaySpending(day: $0, amountCents: totals[$0] ?? 0, date: now) }
+            
+        case .thisWeek:
+            let daySymbols = startWeekOn == "Sunday"
+                ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            
+            var totals: [String: Int64] = [:]
+            for sym in daySymbols { totals[sym] = 0 }
+            
+            guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: now) else {
+                return daySymbols.map { DaySpending(day: $0, amountCents: 0, date: now) }
+            }
+            
+            for exp in baseFilteredExpenses {
+                if exp.spentDate >= weekInterval.start && exp.spentDate < weekInterval.end {
+                    let weekday = calendar.component(.weekday, from: exp.spentDate)
+                    let sym = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday - 1]
+                    totals[sym, default: 0] += exp.amountCents
+                }
+            }
+            return daySymbols.map { DaySpending(day: $0, amountCents: totals[$0] ?? 0, date: now) }
+            
+        case .thisMonth:
+            let weekLabels = ["Week 1", "Week 2", "Week 3", "Week 4"]
+            var totals: [String: Int64] = [:]
+            for label in weekLabels { totals[label] = 0 }
+            
+            guard let monthInterval = calendar.dateInterval(of: .month, for: now) else {
+                return weekLabels.map { DaySpending(day: $0, amountCents: 0, date: now) }
+            }
+            
+            for exp in baseFilteredExpenses {
+                if exp.spentDate >= monthInterval.start && exp.spentDate < monthInterval.end {
+                    let dayOfMonth = calendar.component(.day, from: exp.spentDate)
+                    let bucketLabel: String
+                    if dayOfMonth <= 7 {
+                        bucketLabel = "Week 1"
+                    } else if dayOfMonth <= 14 {
+                        bucketLabel = "Week 2"
+                    } else if dayOfMonth <= 21 {
+                        bucketLabel = "Week 3"
+                    } else {
+                        bucketLabel = "Week 4"
+                    }
+                    totals[bucketLabel, default: 0] += exp.amountCents
+                }
+            }
+            return weekLabels.map { DaySpending(day: $0, amountCents: totals[$0] ?? 0, date: now) }
+            
+        case .thisYear:
+            let monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            var totals: [String: Int64] = [:]
+            for label in monthLabels { totals[label] = 0 }
+            
+            guard let yearInterval = calendar.dateInterval(of: .year, for: now) else {
+                return monthLabels.map { DaySpending(day: $0, amountCents: 0, date: now) }
+            }
+            
+            for exp in baseFilteredExpenses {
+                if exp.spentDate >= yearInterval.start && exp.spentDate < yearInterval.end {
+                    let month = calendar.component(.month, from: exp.spentDate)
+                    if month >= 1 && month <= 12 {
+                        let label = monthLabels[month - 1]
+                        totals[label, default: 0] += exp.amountCents
+                    }
+                }
+            }
+            return monthLabels.map { DaySpending(day: $0, amountCents: totals[$0] ?? 0, date: now) }
+            
+        case .allTime:
+            let currentYear = calendar.component(.year, from: now)
+            let expenseYears = baseFilteredExpenses.map { calendar.component(.year, from: $0.spentDate) }
+            let minYear = min(currentYear - 4, expenseYears.min() ?? (currentYear - 4))
+            let yearLabels = Array(minYear...currentYear).map { String($0) }
+            
+            var totals: [String: Int64] = [:]
+            for label in yearLabels { totals[label] = 0 }
+            
+            for exp in baseFilteredExpenses {
+                let yearStr = String(calendar.component(.year, from: exp.spentDate))
+                if totals[yearStr] != nil {
+                    totals[yearStr, default: 0] += exp.amountCents
+                }
+            }
+            return yearLabels.map { DaySpending(day: $0, amountCents: totals[$0] ?? 0, date: now) }
+        }
+    }
+    
+    public var weeklyChartData: [DaySpending] {
+        chartData
+    }
+    
+    // Grouped expenses by Day Name / Date
+    public var groupedExpenses: [(key: String, expenses: [ExpenseItem])] {
+        let filtered = filteredExpenses
+        
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
+        formatter.dateFormat = "EEEE, d MMM"
         
         let groups = Dictionary(grouping: filtered) { exp in
             let date = exp.spentDate
@@ -134,6 +314,7 @@ public final class DashboardViewModel {
                 return first1.spentAtMillis > first2.spentAtMillis
             }
     }
+
     
     // MARK: - Data Actions
     

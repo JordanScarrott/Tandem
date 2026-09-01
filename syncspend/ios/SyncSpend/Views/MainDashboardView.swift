@@ -29,6 +29,7 @@ public struct MainDashboardView: View {
                             // Action Icons
                             HStack(spacing: 16) {
                                 Button {
+                                    Haptics.impact(.light)
                                     showingSearch = true
                                 } label: {
                                     Image(systemName: "magnifyingglass")
@@ -36,15 +37,91 @@ public struct MainDashboardView: View {
                                         .foregroundStyle(Theme.primaryDark)
                                 }
                                 
-                                Button {
-                                    showingSearch = true
+                                // Native iOS Filter Dropdown Menu
+                                Menu {
+                                    // 1. Period Submenu
+                                    Menu {
+                                        ForEach(FilterPeriod.allCases) { period in
+                                            Button {
+                                                Haptics.selection()
+                                                viewModel.selectedPeriod = period
+                                            } label: {
+                                                if viewModel.selectedPeriod == period {
+                                                    Label(period.title, systemImage: "checkmark")
+                                                } else {
+                                                    Text(period.title)
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Period", systemImage: "calendar")
+                                    }
+                                    
+                                    // 2. Category Submenu
+                                    Menu {
+                                        Button {
+                                            Haptics.selection()
+                                            viewModel.selectedFilterCategoryId = nil
+                                        } label: {
+                                            if viewModel.selectedFilterCategoryId == nil {
+                                                Label("All", systemImage: "checkmark")
+                                            } else {
+                                                Text("All")
+                                            }
+                                        }
+                                        
+                                        ForEach(viewModel.categories) { cat in
+                                            Button {
+                                                Haptics.selection()
+                                                viewModel.selectedFilterCategoryId = cat.id
+                                            } label: {
+                                                if viewModel.selectedFilterCategoryId == cat.id {
+                                                    Label(cat.name, systemImage: "checkmark")
+                                                } else {
+                                                    Text(cat.name)
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Category", systemImage: "tag")
+                                    }
+                                    
+                                    // 3. Payment Method Submenu
+                                    Menu {
+                                        Button {
+                                            Haptics.selection()
+                                            viewModel.selectedPaymentMethod = nil
+                                        } label: {
+                                            if viewModel.selectedPaymentMethod == nil || viewModel.selectedPaymentMethod == "All" {
+                                                Label("All", systemImage: "checkmark")
+                                            } else {
+                                                Text("All")
+                                            }
+                                        }
+                                        
+                                        ForEach(DashboardViewModel.defaultPaymentMethods, id: \.self) { method in
+                                            Button {
+                                                Haptics.selection()
+                                                viewModel.selectedPaymentMethod = method
+                                            } label: {
+                                                if viewModel.selectedPaymentMethod == method {
+                                                    Label(method, systemImage: "checkmark")
+                                                } else {
+                                                    Text(method)
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        Label("Payment Method", systemImage: "creditcard")
+                                    }
                                 } label: {
-                                    Image(systemName: "slider.horizontal.3")
+                                    Image(systemName: "line.3.horizontal.decrease")
                                         .font(.system(size: 18, weight: .medium))
-                                        .foregroundStyle(viewModel.selectedFilterCategoryId != nil ? Theme.accentBlue : Theme.primaryDark)
+                                        .foregroundStyle(viewModel.isFilterActive ? Theme.accentBlue : Theme.primaryDark)
                                 }
                                 
                                 Button {
+                                    Haptics.impact(.light)
                                     showingSettings = true
                                 } label: {
                                     Image(systemName: "gearshape")
@@ -57,17 +134,18 @@ public struct MainDashboardView: View {
                         .padding(.top, 8)
                         
                         // Active Filter Notice Pill
-                        if let catId = viewModel.selectedFilterCategoryId, let cat = viewModel.categoryFor(id: catId) {
+                        if viewModel.isFilterActive {
                             HStack {
-                                Text("Filtered by: **\(cat.name)**")
+                                Text("Filtered by: **\(viewModel.activeFilterDescription)**")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(Theme.accentBlue)
                                 
                                 Spacer()
                                 
                                 Button("Clear") {
+                                    Haptics.selection()
                                     withAnimation {
-                                        viewModel.selectedFilterCategoryId = nil
+                                        viewModel.clearAllFilters()
                                     }
                                 }
                                 .font(.system(size: 13, weight: .semibold))
@@ -75,16 +153,17 @@ public struct MainDashboardView: View {
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(Theme.accentBlue.opacity(0.1))
+                            .background(Theme.accentBlue.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .padding(.horizontal, 16)
                         }
                         
-                        // 1. Weekly Spending Big Card with Bar Chart
+                        // 1. Period Spending Big Card with Bar Chart
                         WeeklySpendingCard(
-                            totalCents: viewModel.weeklyTotalCents,
+                            title: viewModel.periodTitle,
+                            totalCents: viewModel.periodTotalCents,
                             currency: viewModel.currency,
-                            chartData: viewModel.weeklyChartData
+                            chartData: viewModel.chartData
                         )
                         .padding(.horizontal, 16)
                         
@@ -96,6 +175,9 @@ public struct MainDashboardView: View {
                             accountName: viewModel.activeAccount.name,
                             onDelete: { item in
                                 viewModel.deleteExpense(item)
+                            },
+                            onLogExpense: {
+                                showingNewExpense = true
                             }
                         )
                         .padding(.horizontal, 16)
@@ -122,7 +204,7 @@ public struct MainDashboardView: View {
                 
                 // Floating Action Button (FAB)
                 Button {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    Haptics.impact(.medium)
                     showingNewExpense = true
                 } label: {
                     ZStack {
@@ -133,7 +215,7 @@ public struct MainDashboardView: View {
                         
                         Image(systemName: "plus")
                             .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.buttonForeground)
                     }
                 }
                 .buttonStyle(.plain)
@@ -189,3 +271,4 @@ public struct MainDashboardView: View {
         }
     }
 }
+

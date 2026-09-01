@@ -38,7 +38,7 @@ public struct ProUpgradeModal: View {
             .padding(.vertical, 8)
             
             Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.notification(.success)
                 dismiss()
             } label: {
                 Text("Start 7-Day Free Trial")
@@ -59,9 +59,11 @@ public struct ProUpgradeModal: View {
         .padding(24)
         .background(Color(hex: "#1C1C1E") ?? Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-        .presentationDetents([.fraction(0.6)])
+        .presentationDetents([.fraction(0.65), .medium])
+        .presentationDragIndicator(.visible)
     }
 }
+
 
 private struct FeatureRow: View {
     let icon: String

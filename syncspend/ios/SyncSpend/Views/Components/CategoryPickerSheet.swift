@@ -21,7 +21,7 @@ public struct CategoryPickerSheet: View {
             // Header
             HStack {
                 Text("Select Category")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Theme.primaryDark)
                 
                 Spacer()
@@ -29,9 +29,15 @@ public struct CategoryPickerSheet: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.black.opacity(0.15))
+                    ZStack {
+                        Circle()
+                            .fill(Theme.chipBackground)
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.primaryDark)
+                    }
                 }
             }
             .padding(16)
@@ -45,7 +51,7 @@ public struct CategoryPickerSheet: View {
                         let isSelected = selectedCategoryId == cat.id
                         
                         Button {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            Haptics.impact(.light)
                             selectedCategoryId = cat.id
                             dismiss()
                         } label: {
@@ -69,7 +75,7 @@ public struct CategoryPickerSheet: View {
                                 if isSelected {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(Theme.primaryDark)
+                                        .foregroundStyle(Theme.accentBlue)
                                 }
                             }
                             .padding(.horizontal, 16)
@@ -90,7 +96,7 @@ public struct CategoryPickerSheet: View {
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color.black.opacity(0.06))
+                                    .fill(Theme.chipBackground)
                                     .frame(width: 32, height: 32)
                                 
                                 Image(systemName: "plus")
@@ -115,5 +121,7 @@ public struct CategoryPickerSheet: View {
         .background(Theme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
+

@@ -29,7 +29,7 @@ public struct TransactionRowView: View {
             // Category Icon Badge (Squircle)
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.squircleCornerRadius, style: .continuous)
-                    .fill(Color(hex: "#F2F2F7") ?? Color(.systemGray6))
+                    .fill((category?.color ?? Theme.accentBlue).opacity(0.15))
                     .frame(width: 44, height: 44)
                 
                 Image(systemName: category?.icon ?? "tag.fill")
@@ -60,9 +60,13 @@ public struct TransactionRowView: View {
         .padding(.vertical, 14)
         .background(Theme.cardBackground)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive, action: onDelete) {
+            Button(role: .destructive) {
+                Haptics.impact(.medium)
+                onDelete()
+            } label: {
                 Label("Delete", systemImage: "trash.fill")
             }
         }
     }
 }
+

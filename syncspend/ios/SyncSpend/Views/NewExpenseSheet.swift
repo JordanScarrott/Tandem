@@ -3,6 +3,7 @@ import SwiftUI
 public struct NewExpenseSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = NewExpenseViewModel()
+    @FocusState private var isAmountFocused: Bool
     
     public let categories: [CategoryItem]
     public let currency: CurrencyItem
@@ -10,8 +11,6 @@ public struct NewExpenseSheet: View {
     public let smartSuggestionsEnabled: Bool
     public let onExpenseSaved: () -> Void
     
-    @State private var showingCategoryPicker: Bool = false
-    @State private var showingPaymentPicker: Bool = false
     @State private var showingDatePicker: Bool = false
     @State private var showingAddCategory: Bool = false
     
@@ -50,7 +49,7 @@ public struct NewExpenseSheet: View {
                     VStack(spacing: 0) {
                         // Title Row
                         HStack {
-                            TextField("Title", text: $viewModel.title)
+                            TextField("Title (e.g. Lunch with team)", text: $viewModel.title)
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundStyle(Theme.primaryDark)
                         }
@@ -58,6 +57,7 @@ public struct NewExpenseSheet: View {
                         .padding(.vertical, 14)
                         
                         Divider()
+                            .padding(.leading, 16)
                         
                         // Amount Row
                         HStack {
@@ -73,21 +73,42 @@ public struct NewExpenseSheet: View {
                                     .foregroundStyle(Theme.mutedText)
                                 
                                 TextField("0.00", text: $viewModel.amountInput)
+                                    .focused($isAmountFocused)
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
-                                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                                     .foregroundStyle(Theme.primaryDark)
-                                    .frame(maxWidth: 120)
+                                    .frame(maxWidth: 130)
                             }
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
                         
                         Divider()
+                            .padding(.leading, 16)
                         
-                        // Category Row
-                        Button {
-                            showingCategoryPicker = true
+                        // Category Row (Native iOS Menu Dropdown)
+                        Menu {
+                            ForEach(categories) { cat in
+                                Button {
+                                    Haptics.selection()
+                                    viewModel.selectedCategoryId = cat.id
+                                } label: {
+                                    if viewModel.selectedCategoryId == cat.id {
+                                        Label(cat.name, systemImage: "checkmark")
+                                    } else {
+                                        Text(cat.name)
+                                    }
+                                }
+                            }
+                            
+                            Divider()
+                            
+                            Button {
+                                showingAddCategory = true
+                            } label: {
+                                Label("Add Custom Category...", systemImage: "plus")
+                            }
                         } label: {
                             HStack {
                                 Text("Category")
@@ -97,9 +118,20 @@ public struct NewExpenseSheet: View {
                                 Spacer()
                                 
                                 HStack(spacing: 6) {
-                                    Text(selectedCategory?.name ?? "Select")
-                                        .font(.system(size: 15, weight: .regular))
-                                        .foregroundStyle(Theme.mutedText)
+                                    if let cat = selectedCategory {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: cat.icon)
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(cat.color)
+                                            Text(cat.name)
+                                                .font(.system(size: 15, weight: .medium))
+                                                .foregroundStyle(Theme.primaryDark)
+                                        }
+                                    } else {
+                                        Text("Select")
+                                            .font(.system(size: 15, weight: .regular))
+                                            .foregroundStyle(Theme.mutedText)
+                                    }
                                     
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.system(size: 11, weight: .semibold))
@@ -110,13 +142,24 @@ public struct NewExpenseSheet: View {
                             .padding(.vertical, 14)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                         
                         Divider()
+                            .padding(.leading, 16)
                         
-                        // Payment Row
-                        Button {
-                            showingPaymentPicker = true
+                        // Payment Row (Native iOS Menu Dropdown)
+                        Menu {
+                            ForEach(DashboardViewModel.defaultPaymentMethods, id: \.self) { method in
+                                Button {
+                                    Haptics.selection()
+                                    viewModel.selectedPaymentMethod = method
+                                } label: {
+                                    if viewModel.selectedPaymentMethod == method {
+                                        Label(method, systemImage: "checkmark")
+                                    } else {
+                                        Text(method)
+                                    }
+                                }
+                            }
                         } label: {
                             HStack {
                                 Text("Payment")
@@ -127,8 +170,8 @@ public struct NewExpenseSheet: View {
                                 
                                 HStack(spacing: 6) {
                                     Text(viewModel.selectedPaymentMethod)
-                                        .font(.system(size: 15, weight: .regular))
-                                        .foregroundStyle(Theme.mutedText)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundStyle(Theme.primaryDark)
                                     
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.system(size: 11, weight: .semibold))
@@ -139,9 +182,9 @@ public struct NewExpenseSheet: View {
                             .padding(.vertical, 14)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                         
                         Divider()
+                            .padding(.leading, 16)
                         
                         // Date Row
                         HStack {
@@ -152,15 +195,22 @@ public struct NewExpenseSheet: View {
                             Spacer()
                             
                             Button {
+                                isAmountFocused = false
                                 showingDatePicker = true
                             } label: {
-                                Text(formattedDateString)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(Theme.primaryDark)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.black.opacity(0.06))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                HStack(spacing: 6) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Theme.mutedText)
+                                    
+                                    Text(formattedDateString)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(Theme.primaryDark)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Theme.chipBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                             .buttonStyle(.plain)
                         }
@@ -189,6 +239,9 @@ public struct NewExpenseSheet: View {
                             Text("For Partner").tag("PAID_FOR_PARTNER")
                         }
                         .pickerStyle(.segmented)
+                        .onChange(of: viewModel.selectedSplitMode) { _, _ in
+                            Haptics.selection()
+                        }
                     }
                     .padding(.horizontal, 2)
                     
@@ -212,26 +265,17 @@ public struct NewExpenseSheet: View {
                 }
                 .padding(16)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Theme.appBackground)
             .navigationTitle("New Expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button {
+                    Button("Cancel") {
                         dismiss()
-                    } label: {
-                        Text("Cancel")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.primaryDark)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(Theme.cardBorder, lineWidth: 1)
-                            )
                     }
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(Theme.accentBlue)
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
@@ -242,7 +286,7 @@ public struct NewExpenseSheet: View {
                                 accountId: accountId
                             )
                             if success {
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                Haptics.notification(.success)
                                 onExpenseSaved()
                                 dismiss()
                             }
@@ -250,41 +294,19 @@ public struct NewExpenseSheet: View {
                     } label: {
                         if viewModel.isSubmitting {
                             ProgressView()
-                                .tint(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(Theme.buttonDark)
-                                .clipShape(Capsule())
                         } else {
                             Text("Save")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(viewModel.canSave ? Theme.buttonDark : Color.black.opacity(0.2))
-                                .clipShape(Capsule())
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(viewModel.canSave ? Theme.accentBlue : Theme.mutedText)
                         }
                     }
                     .disabled(!viewModel.canSave || viewModel.isSubmitting)
                 }
             }
-            .sheet(isPresented: $showingCategoryPicker) {
-                CategoryPickerSheet(
-                    categories: categories,
-                    selectedCategoryId: $viewModel.selectedCategoryId,
-                    onAddNewCategory: {
-                        showingAddCategory = true
-                    }
-                )
-            }
-            .sheet(isPresented: $showingPaymentPicker) {
-                PaymentMethodPickerSheet(
-                    selectedPaymentMethod: $viewModel.selectedPaymentMethod
-                )
-            }
+            .presentationDragIndicator(.visible)
             .sheet(isPresented: $showingDatePicker) {
                 CustomCalendarPicker(selectedDate: $viewModel.spentDate)
-                    .presentationDetents([.fraction(0.55), .medium])
+                    .presentationDetents([.fraction(0.6), .medium, .large])
             }
             .sheet(isPresented: $showingAddCategory) {
                 AddCategorySheet {
@@ -295,7 +317,13 @@ public struct NewExpenseSheet: View {
                 if viewModel.selectedCategoryId == nil {
                     viewModel.selectedCategoryId = categories.first?.id
                 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    if viewModel.amountInput.isEmpty {
+                        isAmountFocused = true
+                    }
+                }
             }
         }
     }
 }
+

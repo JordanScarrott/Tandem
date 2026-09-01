@@ -8,8 +8,10 @@ public struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var viewModel = SettingsViewModel()
+    @State private var authService = AuthService.shared
     @State private var showingProModal: Bool = false
     @State private var showingCurrencySheet: Bool = false
+    @State private var showingSignOutAlert: Bool = false
     
     public init(
         currency: Binding<CurrencyItem>,
@@ -80,29 +82,43 @@ public struct SettingsView: View {
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
-                                .fill(Color.black.opacity(0.06))
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
                                 .frame(width: 48, height: 48)
                             
-                            Text(String(accountName.prefix(1)))
+                            Text(String((authService.currentUserName ?? accountName).prefix(1)).uppercased())
                                 .font(.system(size: 20, weight: .bold))
-                                .foregroundStyle(Theme.primaryDark)
+                                .foregroundStyle(.white)
                         }
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(accountName)
+                            Text(authService.currentUserName ?? accountName)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundStyle(Theme.primaryDark)
                             
-                            Text("Account info, categories and payments")
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(Theme.mutedText)
+                            if let email = authService.currentUserEmail {
+                                Text(email)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Theme.accentBlue)
+                            } else if let ident = authService.currentUserIdentity ?? SpacetimeService.shared.identity {
+                                let prefix = String(ident.prefix(8))
+                                let suffix = String(ident.suffix(6))
+                                Text("\(prefix)...\(suffix)")
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .foregroundStyle(Theme.mutedText)
+                            } else {
+                                Text("Guest / Offline Mode")
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundStyle(Theme.mutedText)
+                            }
                         }
                         
                         Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.mutedText)
                     }
                     .padding(16)
                     .background(Theme.cardBackground)
@@ -264,6 +280,43 @@ public struct SettingsView: View {
                         )
                     }
                     
+                    // Session & Security Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ACCOUNT & SECURITY")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.mutedText)
+                            .padding(.horizontal, 4)
+                        
+                        Button {
+                            showingSignOutAlert = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(Theme.accentRed.opacity(0.1))
+                                        .frame(width: 32, height: 32)
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(Theme.accentRed)
+                                }
+                                
+                                Text("Sign Out")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Theme.accentRed)
+                                
+                                Spacer()
+                            }
+                            .padding(16)
+                            .background(Theme.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
+                                    .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
                     // App Version Footer
                     Text("SyncSpend iOS 2.4.1 (Build 2026)")
                         .font(.system(size: 12, weight: .medium))
@@ -282,16 +335,16 @@ public struct SettingsView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(Color.white)
+                                .fill(Theme.chipBackground)
                                 .frame(width: 32, height: 32)
                             Image(systemName: "xmark")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(Theme.primaryDark)
                         }
-                        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
                     }
                 }
             }
+            .presentationDragIndicator(.visible)
             .sheet(isPresented: $showingProModal) {
                 ProUpgradeModal()
             }
@@ -299,6 +352,7 @@ public struct SettingsView: View {
                 NavigationStack {
                     List(CurrencyItem.allCurrencies) { item in
                         Button {
+                            Haptics.selection()
                             currency = item
                             showingCurrencySheet = false
                         } label: {
@@ -310,7 +364,7 @@ public struct SettingsView: View {
                                 if currency.code == item.code {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(Theme.primaryDark)
+                                        .foregroundStyle(Theme.accentBlue)
                                 }
                             }
                         }
@@ -318,7 +372,18 @@ public struct SettingsView: View {
                     .navigationTitle("Select Currency")
                     .navigationBarTitleDisplayMode(.inline)
                 }
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .alert("Sign Out", isPresented: $showingSignOutAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Sign Out", role: .destructive) {
+                    Haptics.impact(.medium)
+                    authService.logout()
+                    dismiss()
+                }
+            } message: {
+                Text("Are you sure you want to sign out of SyncSpend? Your local session will be cleared.")
             }
         }
     }

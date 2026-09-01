@@ -46,30 +46,42 @@ public struct SmartSuggestionsView: View {
                 HStack(spacing: 8) {
                     ForEach(suggestions) { item in
                         Button {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            Haptics.impact(.light)
                             let matchedCat = categories.first(where: {
                                 $0.name.localizedCaseInsensitiveContains(item.categoryMatchName)
                             })
-                            onSelect(item.title, item.amount, matchedCat?.id)
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                onSelect(item.title, item.amount, matchedCat?.id)
+                            }
                         } label: {
-                            Text("+ \(item.title) (\(currencySymbol)\(item.amount))")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Theme.primaryDark)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Theme.cardBackground)
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(Theme.cardBorder, lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 2)
+                            HStack(spacing: 4) {
+                                Text("+")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(Theme.accentBlue)
+                                Text("\(item.title)")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Theme.primaryDark)
+                                Text("(\(currencySymbol)\(item.amount))")
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundStyle(Theme.mutedText)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Theme.cardBackground)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Theme.cardBorder, lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 4)
+                .padding(.vertical, 2)
             }
         }
     }
 }
+

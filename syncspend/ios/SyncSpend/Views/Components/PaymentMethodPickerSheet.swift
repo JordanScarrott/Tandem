@@ -21,7 +21,7 @@ public struct PaymentMethodPickerSheet: View {
             // Header
             HStack {
                 Text("Payment Method")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Theme.primaryDark)
                 
                 Spacer()
@@ -29,9 +29,15 @@ public struct PaymentMethodPickerSheet: View {
                 Button {
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.black.opacity(0.15))
+                    ZStack {
+                        Circle()
+                            .fill(Theme.chipBackground)
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.primaryDark)
+                    }
                 }
             }
             .padding(16)
@@ -43,7 +49,7 @@ public struct PaymentMethodPickerSheet: View {
                     let isSelected = selectedPaymentMethod == method
                     
                     Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        Haptics.impact(.light)
                         selectedPaymentMethod = method
                         dismiss()
                     } label: {
@@ -57,7 +63,7 @@ public struct PaymentMethodPickerSheet: View {
                             if isSelected {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(Theme.primaryDark)
+                                    .foregroundStyle(Theme.accentBlue)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -67,11 +73,14 @@ public struct PaymentMethodPickerSheet: View {
                     .buttonStyle(.plain)
                     
                     Divider()
+                        .padding(.leading, 16)
                 }
             }
         }
         .background(Theme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .presentationDetents([.fraction(0.4), .medium])
+        .presentationDetents([.fraction(0.42), .medium])
+        .presentationDragIndicator(.visible)
     }
 }
+

@@ -69,7 +69,7 @@ public struct AddCategorySheet: View {
                         ForEach(availableIcons, id: \.self) { icon in
                             let isSelected = selectedIcon == icon
                             Button {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                Haptics.impact(.light)
                                 selectedIcon = icon
                             } label: {
                                 Image(systemName: icon)
@@ -91,7 +91,7 @@ public struct AddCategorySheet: View {
                             let isSelected = selectedColorHex == colorHex
                             let col = Color(hex: colorHex) ?? .blue
                             Button {
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                Haptics.impact(.light)
                                 selectedColorHex = colorHex
                             } label: {
                                 ZStack {
@@ -108,6 +108,7 @@ public struct AddCategorySheet: View {
                             .buttonStyle(.plain)
                         }
                     }
+
                     .padding(.vertical, 4)
                 }
 
@@ -133,6 +134,7 @@ public struct AddCategorySheet: View {
                     .fontWeight(.semibold)
                 }
             }
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -149,7 +151,7 @@ public struct AddCategorySheet: View {
                     colorHex: selectedColorHex,
                     monthlyBudgetCents: parsedBudgetCents
                 )
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.notification(.success)
                 onCategoryCreated()
                 dismiss()
             } catch {
@@ -159,3 +161,4 @@ public struct AddCategorySheet: View {
         }
     }
 }
+

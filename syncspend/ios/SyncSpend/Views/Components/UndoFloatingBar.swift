@@ -31,15 +31,15 @@ public struct UndoFloatingBar: View {
             Spacer()
             
             Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.notification(.success)
                 onUndo()
             } label: {
                 Text("UNDO")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Theme.primaryDark)
+                    .foregroundStyle(Theme.buttonForeground)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.08))
+                    .background(Theme.buttonDark)
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -50,10 +50,11 @@ public struct UndoFloatingBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                .strokeBorder(Theme.cardBorder, lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 6)
         .padding(.horizontal, 16)
         .padding(.bottom, 80)
     }
 }
+

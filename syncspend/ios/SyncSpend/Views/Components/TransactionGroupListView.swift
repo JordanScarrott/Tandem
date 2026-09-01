@@ -6,19 +6,22 @@ public struct TransactionGroupListView: View {
     public let currency: CurrencyItem
     public let accountName: String
     public let onDelete: (ExpenseItem) -> Void
+    public let onLogExpense: (() -> Void)?
     
     public init(
         groupedExpenses: [(key: String, expenses: [ExpenseItem])],
         categories: [CategoryItem],
         currency: CurrencyItem,
         accountName: String,
-        onDelete: @escaping (ExpenseItem) -> Void
+        onDelete: @escaping (ExpenseItem) -> Void,
+        onLogExpense: (() -> Void)? = nil
     ) {
         self.groupedExpenses = groupedExpenses
         self.categories = categories
         self.currency = currency
         self.accountName = accountName
         self.onDelete = onDelete
+        self.onLogExpense = onLogExpense
     }
     
     private func categoryFor(id: UInt64) -> CategoryItem? {
@@ -29,11 +32,11 @@ public struct TransactionGroupListView: View {
         VStack(spacing: 20) {
             if groupedExpenses.isEmpty {
                 // Empty state matching prototype
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     ZStack {
                         Circle()
-                            .fill(Color.black.opacity(0.04))
-                            .frame(width: 56, height: 56)
+                            .fill(Theme.chipBackground)
+                            .frame(width: 60, height: 60)
                         
                         Image(systemName: "creditcard")
                             .font(.system(size: 26))
@@ -42,23 +45,46 @@ public struct TransactionGroupListView: View {
                     .padding(.bottom, 4)
                     
                     Text("No expenses found")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Theme.primaryDark)
                     
-                    Text("Tap the black plus button below to log your first purchase in \(accountName).")
+                    Text("Tap below to log your first purchase in \(accountName).")
                         .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(Theme.mutedText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
+                    
+                    if let onLog = onLogExpense {
+                        Button {
+                            Haptics.impact(.medium)
+                            onLog()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 13, weight: .bold))
+                                Text("Log Expense")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundStyle(Theme.buttonForeground)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Theme.buttonDark)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
+                    }
                 }
                 .padding(.vertical, 40)
             } else {
                 ForEach(groupedExpenses, id: \.key) { group in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(group.key)
-                            .font(.system(size: 15, weight: .semibold))
+                        Text(group.key.uppercased())
+                            .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(Theme.mutedText)
                             .padding(.horizontal, 8)
+                            .tracking(0.5)
                         
                         VStack(spacing: 0) {
                             ForEach(Array(group.expenses.enumerated()), id: \.element.id) { index, item in
@@ -88,3 +114,4 @@ public struct TransactionGroupListView: View {
         }
     }
 }
+

@@ -20,6 +20,8 @@ import {
   FileText,
   Trash2,
   Edit2,
+  Tag,
+  Filter,
   CreditCard,
   Wallet,
   Utensils,
@@ -41,7 +43,9 @@ import {
   Globe,
   Mic,
   Smile,
-  Delete
+  Delete,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
 // --- Constants & Initial Data ---
@@ -78,13 +82,34 @@ const CURRENCIES = [
 // Initial mock transactions corresponding directly to the screenshots (August 2026)
 const INITIAL_EXPENSES = [
   {
+    id: 'exp-today-1',
+    accountId: 'acc-personal',
+    title: 'Matcha Latte',
+    amount: 55.00,
+    category: 'food',
+    paymentMethod: 'apple-pay',
+    date: '2026-08-29',
+    time: '09:15'
+  },
+  {
+    id: 'exp-today-2',
+    accountId: 'acc-personal',
+    title: 'Lunch Bowl',
+    amount: 145.00,
+    category: 'food',
+    paymentMethod: 'apple-pay',
+    date: '2026-08-29',
+    time: '13:30'
+  },
+  {
     id: 'exp-1',
     accountId: 'acc-personal',
     title: 'Creatine',
     amount: 325.00,
     category: 'health',
     paymentMethod: 'apple-pay',
-    date: '2026-08-28' // Friday
+    date: '2026-08-28', // Friday
+    time: '14:00'
   },
   {
     id: 'exp-2',
@@ -93,7 +118,88 @@ const INITIAL_EXPENSES = [
     amount: 1150.00,
     category: 'health',
     paymentMethod: 'apple-pay',
-    date: '2026-08-28' // Friday
+    date: '2026-08-28', // Friday
+    time: '14:05'
+  },
+  {
+    id: 'exp-3',
+    accountId: 'acc-personal',
+    title: 'Fuel',
+    amount: 650.00,
+    category: 'transportation',
+    paymentMethod: 'credit-card',
+    date: '2026-08-26', // Wednesday
+    time: '08:20'
+  },
+  {
+    id: 'exp-4',
+    accountId: 'acc-personal',
+    title: 'Weekly Groceries',
+    amount: 890.00,
+    category: 'food',
+    paymentMethod: 'debit-card',
+    date: '2026-08-24', // Monday
+    time: '17:45'
+  },
+  {
+    id: 'exp-5',
+    accountId: 'acc-personal',
+    title: 'Gym Membership',
+    amount: 799.00,
+    category: 'services',
+    paymentMethod: 'bank-transfer',
+    date: '2026-08-15',
+    time: '10:00'
+  },
+  {
+    id: 'exp-6',
+    accountId: 'acc-personal',
+    title: 'Flight Ticket',
+    amount: 2450.00,
+    category: 'travel',
+    paymentMethod: 'credit-card',
+    date: '2026-08-05',
+    time: '11:30'
+  },
+  {
+    id: 'exp-7',
+    accountId: 'acc-personal',
+    title: 'Running Shoes',
+    amount: 1899.00,
+    category: 'shopping',
+    paymentMethod: 'credit-card',
+    date: '2026-06-18',
+    time: '15:10'
+  },
+  {
+    id: 'exp-8',
+    accountId: 'acc-personal',
+    title: 'Car Service',
+    amount: 3200.00,
+    category: 'services',
+    paymentMethod: 'bank-transfer',
+    date: '2026-04-12',
+    time: '09:00'
+  },
+  {
+    id: 'exp-9',
+    accountId: 'acc-personal',
+    title: 'Noise Cancelling Headphones',
+    amount: 2800.00,
+    category: 'shopping',
+    paymentMethod: 'apple-pay',
+    date: '2025-11-20',
+    time: '16:00'
+  },
+  {
+    id: 'exp-10',
+    accountId: 'acc-personal',
+    title: 'Office Chair',
+    amount: 3500.00,
+    category: 'shopping',
+    paymentMethod: 'bank-transfer',
+    date: '2024-08-10',
+    time: '12:00'
   }
 ];
 
@@ -104,6 +210,15 @@ const INITIAL_ACCOUNTS = [
 ];
 
 export default function App() {
+  // Authentication & Session State (OIDC SpacetimeAuth)
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState({
+    name: 'Alex & Jordan',
+    email: 'alex@tandem.app',
+    identity: 'c43f9a812b3e4f50123456789abcdef0'
+  });
+
   // State
   const [accounts, setAccounts] = useState(INITIAL_ACCOUNTS);
   const [activeAccountId, setActiveAccountId] = useState('acc-personal');
@@ -116,8 +231,8 @@ export default function App() {
   const [isAccountsOpen, setIsAccountsOpen] = useState(false);
   const [isAccountsEditing, setIsAccountsEditing] = useState(false);
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
-  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
-  const [isPaymentPickerOpen, setIsPaymentPickerOpen] = useState(false);
+  const [isExpenseCategoryDropdownOpen, setIsExpenseCategoryDropdownOpen] = useState(false);
+  const [isExpensePaymentDropdownOpen, setIsExpensePaymentDropdownOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -127,7 +242,24 @@ export default function App() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [filterMenuTab, setFilterMenuTab] = useState('root'); // 'root' | 'period' | 'category' | 'payment'
+  const [selectedFilterPeriod, setSelectedFilterPeriod] = useState('This Week');
   const [selectedFilterCategory, setSelectedFilterCategory] = useState('all');
+  const [selectedFilterPayment, setSelectedFilterPayment] = useState('All');
+  const filterMenuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target)) {
+        setIsFilterMenuOpen(false);
+      }
+    }
+    if (isFilterMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isFilterMenuOpen]);
 
   // Form State for New Expense
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
@@ -148,27 +280,36 @@ export default function App() {
 
   // Helper formatting for currency
   const formatMoney = (val) => {
-    const num = Number(val || 0);
-    // Format: "R 1 475,00"
-    const parts = num.toFixed(2).split('.');
-    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    return `${currency.symbol} ${integerPart},${parts[1]}`;
+    return `${currency.symbol} ${val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
+
+  const formatMoneyWithDecimals = (val) => {
+    return `${currency.symbol} ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Helper formatting for date display e.g. "28 Aug 2026"
   const formatDateDisplay = (dateString) => {
     if (!dateString) return '';
-    const dateObj = new Date(dateString + 'T00:00:00');
+    const cleanDate = dateString.includes('T') ? dateString.split('T')[0] : dateString;
+    const dateObj = new Date(cleanDate + 'T00:00:00');
     const day = dateObj.getDate();
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${day} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
   };
 
-  // Helper for day name
-  const getDayName = (dateString) => {
-    const dateObj = new Date(dateString + 'T00:00:00');
+  // Helper to format ISO date to Day Name
+  const getDayName = (dateStr) => {
+    const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const dateObj = new Date(cleanDate + 'T00:00:00');
+    const today = new Date('2026-08-29T00:00:00');
+    const yesterday = new Date('2026-08-28T00:00:00');
+
+    if (dateObj.toDateString() === today.toDateString()) return 'Today';
+    if (dateObj.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[dateObj.getDay()];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[dateObj.getDay()]}, ${dateObj.getDate()} ${months[dateObj.getMonth()]}`;
   };
 
   // Filtered expenses for active account
@@ -176,12 +317,73 @@ export default function App() {
     return expenses.filter(e => e.accountId === activeAccountId);
   }, [expenses, activeAccountId]);
 
-  // Total spent this week (calculated from current active account expenses)
-  const weeklyTotal = useMemo(() => {
-    return accountExpenses.reduce((acc, curr) => acc + curr.amount, 0);
-  }, [accountExpenses]);
+  // Reference current date for prototype
+  const referenceNow = useMemo(() => new Date('2026-08-29T12:00:00'), []);
 
-  // Weekly breakdown by day for the chart
+  // Filtered expenses by non-period filters (search, category, payment method)
+  const baseFilteredExpenses = useMemo(() => {
+    let filtered = accountExpenses;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(e =>
+        e.title.toLowerCase().includes(q) ||
+        e.amount.toString().includes(q)
+      );
+    }
+    if (selectedFilterCategory !== 'all') {
+      filtered = filtered.filter(e => e.category === selectedFilterCategory);
+    }
+    if (selectedFilterPayment !== 'All') {
+      const pNorm = selectedFilterPayment.toLowerCase().replace(/[^a-z0-9]/g, '');
+      filtered = filtered.filter(e => {
+        const eNorm = (e.paymentMethod || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return eNorm.includes(pNorm) || pNorm.includes(eNorm);
+      });
+    }
+    return filtered;
+  }, [accountExpenses, searchQuery, selectedFilterCategory, selectedFilterPayment]);
+
+  // Expenses matching all active filters including period
+  const periodFilteredExpenses = useMemo(() => {
+    if (selectedFilterPeriod === 'All Time') {
+      return baseFilteredExpenses;
+    }
+    return baseFilteredExpenses.filter(e => {
+      const cleanDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+      const d = new Date(cleanDate + 'T00:00:00');
+      if (selectedFilterPeriod === 'Today') {
+        return d.toDateString() === referenceNow.toDateString();
+      } else if (selectedFilterPeriod === 'This Week') {
+        const diffDays = Math.abs((referenceNow - d) / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      } else if (selectedFilterPeriod === 'This Month') {
+        return d.getFullYear() === referenceNow.getFullYear() && d.getMonth() === referenceNow.getMonth();
+      } else if (selectedFilterPeriod === 'This Year') {
+        return d.getFullYear() === referenceNow.getFullYear();
+      }
+      return true;
+    });
+  }, [baseFilteredExpenses, selectedFilterPeriod, referenceNow]);
+
+  // Title for the Spending Card
+  const chartTitle = useMemo(() => {
+    switch (selectedFilterPeriod) {
+      case 'Today': return 'Spent today';
+      case 'This Week': return 'Spent this week';
+      case 'This Month': return 'Spent this month';
+      case 'This Year': return 'Spent this year';
+      case 'All Time': return 'Total spent';
+      default: return 'Spent this week';
+    }
+  }, [selectedFilterPeriod]);
+
+  // Total spent in active period
+  const chartTotal = useMemo(() => {
+    return periodFilteredExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+  }, [periodFilteredExpenses]);
+
+  const weeklyTotal = chartTotal;
+
   // Days order depending on `startWeekOn`
   const weekDays = useMemo(() => {
     if (startWeekOn === 'Sunday') {
@@ -190,42 +392,133 @@ export default function App() {
     return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   }, [startWeekOn]);
 
-  const weeklyChartData = useMemo(() => {
-    const dayTotals = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
-    accountExpenses.forEach(exp => {
-      const dateObj = new Date(exp.date + 'T00:00:00');
-      const dayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dateObj.getDay()];
-      if (dayTotals[dayShort] !== undefined) {
-        dayTotals[dayShort] += exp.amount;
+  // Dynamic Chart Data based on selectedFilterPeriod
+  const chartData = useMemo(() => {
+    if (selectedFilterPeriod === 'Today') {
+      const timeLabels = ['12 AM', '6 AM', '12 PM', '6 PM'];
+      const totals = { '12 AM': 0, '6 AM': 0, '12 PM': 0, '6 PM': 0 };
+      baseFilteredExpenses.forEach(exp => {
+        const cleanDate = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
+        const d = new Date(cleanDate + 'T00:00:00');
+        if (d.toDateString() === referenceNow.toDateString()) {
+          const hour = exp.time ? parseInt(exp.time.split(':')[0], 10) : 12;
+          let bucket = '12 PM';
+          if (hour < 6) bucket = '12 AM';
+          else if (hour < 12) bucket = '6 AM';
+          else if (hour < 18) bucket = '12 PM';
+          else bucket = '6 PM';
+          totals[bucket] += exp.amount;
+        }
+      });
+      return timeLabels.map(label => ({ day: label, amount: totals[label] }));
+    }
+
+    if (selectedFilterPeriod === 'This Week') {
+      const dayTotals = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
+      baseFilteredExpenses.forEach(exp => {
+        const cleanDate = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
+        const d = new Date(cleanDate + 'T00:00:00');
+        const diffDays = Math.abs((referenceNow - d) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 7) {
+          const dayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+          if (dayTotals[dayShort] !== undefined) {
+            dayTotals[dayShort] += exp.amount;
+          }
+        }
+      });
+      return weekDays.map(day => ({ day, amount: dayTotals[day] || 0 }));
+    }
+
+    if (selectedFilterPeriod === 'This Month') {
+      const weekLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      const totals = { 'Week 1': 0, 'Week 2': 0, 'Week 3': 0, 'Week 4': 0 };
+      baseFilteredExpenses.forEach(exp => {
+        const cleanDate = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
+        const d = new Date(cleanDate + 'T00:00:00');
+        if (d.getFullYear() === referenceNow.getFullYear() && d.getMonth() === referenceNow.getMonth()) {
+          const dayOfMonth = d.getDate();
+          let bucket = 'Week 1';
+          if (dayOfMonth <= 7) bucket = 'Week 1';
+          else if (dayOfMonth <= 14) bucket = 'Week 2';
+          else if (dayOfMonth <= 21) bucket = 'Week 3';
+          else bucket = 'Week 4';
+          totals[bucket] += exp.amount;
+        }
+      });
+      return weekLabels.map(label => ({ day: label, amount: totals[label] }));
+    }
+
+    if (selectedFilterPeriod === 'This Year') {
+      const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const totals = {};
+      monthLabels.forEach(m => { totals[m] = 0; });
+      baseFilteredExpenses.forEach(exp => {
+        const cleanDate = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
+        const d = new Date(cleanDate + 'T00:00:00');
+        if (d.getFullYear() === referenceNow.getFullYear()) {
+          const mName = monthLabels[d.getMonth()];
+          if (totals[mName] !== undefined) {
+            totals[mName] += exp.amount;
+          }
+        }
+      });
+      return monthLabels.map(label => ({ day: label, amount: totals[label] }));
+    }
+
+    // All Time
+    const currentYear = referenceNow.getFullYear();
+    const expenseYears = baseFilteredExpenses.map(e => {
+      const cleanDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+      return new Date(cleanDate + 'T00:00:00').getFullYear();
+    });
+    const minYear = Math.min(currentYear - 4, expenseYears.length > 0 ? Math.min(...expenseYears) : currentYear - 4);
+    const yearLabels = [];
+    for (let y = minYear; y <= currentYear; y++) {
+      yearLabels.push(y.toString());
+    }
+    const totals = {};
+    yearLabels.forEach(y => { totals[y] = 0; });
+    baseFilteredExpenses.forEach(exp => {
+      const cleanDate = exp.date.includes('T') ? exp.date.split('T')[0] : exp.date;
+      const yStr = new Date(cleanDate + 'T00:00:00').getFullYear().toString();
+      if (totals[yStr] !== undefined) {
+        totals[yStr] += exp.amount;
       }
     });
-    return weekDays.map(day => ({
-      day,
-      amount: dayTotals[day] || 0
-    }));
-  }, [accountExpenses, weekDays]);
+    return yearLabels.map(label => ({ day: label, amount: totals[label] }));
+  }, [selectedFilterPeriod, baseFilteredExpenses, weekDays, referenceNow]);
+
+  const weeklyChartData = chartData;
+
+  // Dynamic Guideline Max and Steps
+  const chartMaxVal = useMemo(() => {
+    const highest = Math.max(0, ...chartData.map(d => d.amount));
+    if (highest <= 0) return 1500;
+    const step = highest > 10000 ? 5000 : (highest > 2000 ? 1000 : 500);
+    const ceiling = Math.ceil(highest / step) * step;
+    return Math.max(1500, ceiling);
+  }, [chartData]);
+
+  const chartStepLabels = useMemo(() => {
+    const step = chartMaxVal / 3;
+    return [
+      Math.round(chartMaxVal).toLocaleString('en-US'),
+      Math.round(step * 2).toLocaleString('en-US'),
+      Math.round(step).toLocaleString('en-US'),
+      '0'
+    ];
+  }, [chartMaxVal]);
 
   // Grouped expenses by day for list rendering
   const groupedExpenses = useMemo(() => {
-    let filtered = accountExpenses;
-    if (searchQuery.trim()) {
-      filtered = filtered.filter(e =>
-        e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.amount.toString().includes(searchQuery)
-      );
-    }
-    if (selectedFilterCategory !== 'all') {
-      filtered = filtered.filter(e => e.category === selectedFilterCategory);
-    }
-
     const groups = {};
-    filtered.forEach(exp => {
+    periodFilteredExpenses.forEach(exp => {
       const dayName = getDayName(exp.date);
       if (!groups[dayName]) groups[dayName] = [];
       groups[dayName].push(exp);
     });
     return groups;
-  }, [accountExpenses, searchQuery, selectedFilterCategory]);
+  }, [periodFilteredExpenses]);
 
   // Calendar Day Generation
   const calendarDays = useMemo(() => {
@@ -315,6 +608,28 @@ export default function App() {
     }
   };
 
+  // Drag & Drop Account Reordering
+  const [draggedAccountIndex, setDraggedAccountIndex] = useState(null);
+
+  const handleAccountDragStart = (e, index) => {
+    setDraggedAccountIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleAccountDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedAccountIndex === null || draggedAccountIndex === index) return;
+    const newAccounts = [...accounts];
+    const [moved] = newAccounts.splice(draggedAccountIndex, 1);
+    newAccounts.splice(index, 0, moved);
+    setDraggedAccountIndex(index);
+    setAccounts(newAccounts);
+  };
+
+  const handleAccountDragEnd = () => {
+    setDraggedAccountIndex(null);
+  };
+
   const selectedCategoryObj = CATEGORIES.find(c => c.id === newExpenseCategory) || CATEGORIES[0];
   const selectedPaymentObj = PAYMENT_METHODS.find(p => p.id === newExpensePayment) || PAYMENT_METHODS[0];
 
@@ -352,22 +667,118 @@ export default function App() {
           </div>
         </div>
 
-        {/* Top Header Bar */}
-        <div className="px-5 pt-1.5 pb-3 flex items-center justify-between z-20">
-          {/* Account Selector Pill */}
-          <button
-            onClick={() => {
-              setIsAccountsEditing(false);
-              setIsAccountsOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/70 backdrop-blur-md rounded-full text-[15px] font-semibold text-black hover:bg-white active:scale-95 transition-all shadow-sm border border-black/5"
-          >
-            <span>{currentAccount.name}</span>
-            <ChevronDown className="w-4 h-4 text-neutral-600 stroke-[2.5]" />
-          </button>
+        {/* Body content: LoginView when unauthenticated, Dashboard when authenticated */}
+        {!isAuthenticated ? (
+          <div className="flex-1 flex flex-col px-6 pt-4 pb-10 justify-between z-20 animate-in fade-in duration-300">
+            {/* Hero Header */}
+            <div className="text-center pt-8 space-y-4">
+              <div className="w-20 h-20 mx-auto rounded-[24px] bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-xl shadow-indigo-500/25 animate-pulse">
+                <RefreshCw className="w-10 h-10 stroke-[2.5]" />
+              </div>
+              <div>
+                <h2 className="text-[28px] font-bold text-black tracking-tight">SyncSpend</h2>
+                <p className="text-[14px] text-neutral-500 font-medium mt-1">Shared finances for modern couples</p>
+              </div>
+            </div>
+
+            {/* Feature Bullets */}
+            <div className="space-y-3 my-6">
+              <div className="p-3.5 bg-white rounded-[20px] border border-neutral-200/80 shadow-xs flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[14px] font-bold text-black">Real-Time Couple Sync</p>
+                  <p className="text-[11px] text-neutral-400">Live updates powered by SpacetimeDB Maincloud</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-white rounded-[20px] border border-neutral-200/80 shadow-xs flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[14px] font-bold text-black">Smart Split Ratios</p>
+                  <p className="text-[11px] text-neutral-400">50/50, proportional by income, or custom splits</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-white rounded-[20px] border border-neutral-200/80 shadow-xs flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[14px] font-bold text-black">End-to-End Privacy</p>
+                  <p className="text-[11px] text-neutral-400">Server-side row level security isolates data</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setIsAuthLoading(true);
+                  setTimeout(() => {
+                    setCurrentUser({
+                      name: 'Alex & Jordan',
+                      email: 'alex@tandem.app',
+                      identity: 'c43f9a812b3e4f50123456789abcdef0'
+                    });
+                    setIsAuthenticated(true);
+                    setIsAuthLoading(false);
+                  }, 600);
+                }}
+                disabled={isAuthLoading}
+                className="w-full py-4 rounded-2xl bg-black text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-lg hover:bg-neutral-800 active:scale-98 transition-all"
+              >
+                {isAuthLoading ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Sign In with SpacetimeAuth</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setCurrentUser({
+                    name: 'Guest User',
+                    email: 'guest@tandem.app',
+                    identity: 'guest-offline-ident'
+                  });
+                  setIsAuthenticated(true);
+                }}
+                className="w-full py-3.5 rounded-2xl bg-neutral-200/80 text-black font-semibold text-[14px] hover:bg-neutral-300 active:scale-98 transition-all"
+              >
+                Explore as Guest
+              </button>
+
+              <p className="text-[11px] text-neutral-400 text-center pt-2">
+                By continuing, you agree to SyncSpend's Security & Privacy policies.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Top Header Bar */}
+            <div className="px-5 pt-1.5 pb-3 flex items-center justify-between z-20">
+              {/* Account Selector Pill */}
+              <button
+                onClick={() => {
+                  setIsAccountsEditing(false);
+                  setIsAccountsOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/70 backdrop-blur-md rounded-full text-[15px] font-semibold text-black hover:bg-white active:scale-95 transition-all shadow-sm border border-black/5"
+              >
+                <span>{currentAccount.name}</span>
+                <ChevronDown className="w-4 h-4 text-neutral-600 stroke-[2.5]" />
+              </button>
 
           {/* Action Icons */}
-          <div className="flex items-center gap-4 text-neutral-800">
+          <div className="flex items-center gap-4 text-neutral-800 relative">
             <button
               onClick={() => setIsSearchOpen(true)}
               className="p-1 hover:text-black active:scale-90 transition-transform"
@@ -375,15 +786,219 @@ export default function App() {
             >
               <Search className="w-5 h-5 stroke-[2.2]" />
             </button>
-            <button
-              onClick={() => {
-                setSelectedFilterCategory(prev => (prev === 'all' ? 'health' : 'all'));
-              }}
-              className={`p-1 hover:text-black active:scale-90 transition-transform ${selectedFilterCategory !== 'all' ? 'text-blue-600' : ''}`}
-              title="Filter categories"
-            >
-              <SlidersHorizontal className="w-5 h-5 stroke-[2.2]" />
-            </button>
+
+            {/* Native iOS Dropdown Filter Button & Menu */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setIsFilterMenuOpen(prev => !prev);
+                  setFilterMenuTab('root');
+                }}
+                className={`p-1 hover:text-black active:scale-90 transition-transform ${
+                  selectedFilterCategory !== 'all' || selectedFilterPayment !== 'All' || selectedFilterPeriod !== 'This Week'
+                    ? 'text-blue-600'
+                    : ''
+                }`}
+                title="Filter expenses"
+              >
+                <Filter className="w-5 h-5 stroke-[2.2]" />
+              </button>
+
+              {/* iOS Native Dropdown Popup (Anchored below filter button) */}
+              {isFilterMenuOpen && (
+                <div
+                  ref={filterMenuRef}
+                  className="absolute top-9 right-0 z-50 w-64 bg-white/95 backdrop-blur-2xl rounded-[24px] p-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.14)] border border-neutral-200/80 animate-in fade-in zoom-in-95 duration-150"
+                >
+                  {/* Root Menu View (Screenshot 1) */}
+                  {filterMenuTab === 'root' && (
+                    <div className="space-y-1">
+                      {/* Period Row */}
+                      <button
+                        onClick={() => setFilterMenuTab('period')}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-100/80 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CalendarIcon className="w-5 h-5 text-neutral-800 stroke-[1.8]" />
+                          <div>
+                            <div className="text-[15px] font-medium text-neutral-900 leading-tight">Period</div>
+                            <div className="text-[13px] text-neutral-400 font-normal leading-tight mt-0.5">{selectedFilterPeriod}</div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-neutral-400 stroke-[2.2]" />
+                      </button>
+
+                      {/* Category Row */}
+                      <button
+                        onClick={() => setFilterMenuTab('category')}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-100/80 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Tag className="w-5 h-5 text-neutral-800 stroke-[1.8]" />
+                          <div>
+                            <div className="text-[15px] font-medium text-neutral-900 leading-tight">Category</div>
+                            <div className="text-[13px] text-neutral-400 font-normal leading-tight mt-0.5">
+                              {selectedFilterCategory === 'all' ? 'All' : (CATEGORIES.find(c => c.id === selectedFilterCategory)?.name || 'All')}
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-neutral-400 stroke-[2.2]" />
+                      </button>
+
+                      {/* Payment Method Row */}
+                      <button
+                        onClick={() => setFilterMenuTab('payment')}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-100/80 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CreditCard className="w-5 h-5 text-neutral-800 stroke-[1.8]" />
+                          <div>
+                            <div className="text-[15px] font-medium text-neutral-900 leading-tight">Payment Method</div>
+                            <div className="text-[13px] text-neutral-400 font-normal leading-tight mt-0.5">{selectedFilterPayment}</div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-neutral-400 stroke-[2.2]" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Period Submenu (Screenshot 2) */}
+                  {filterMenuTab === 'period' && (
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setFilterMenuTab('root')}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-100/80 transition-colors text-left border-b border-neutral-100/80 pb-3 mb-1"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CalendarIcon className="w-5 h-5 text-neutral-800 stroke-[1.8]" />
+                          <div>
+                            <div className="text-[15px] font-medium text-neutral-900 leading-tight">Period</div>
+                            <div className="text-[13px] text-neutral-400 font-normal leading-tight mt-0.5">{selectedFilterPeriod}</div>
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-neutral-500 stroke-[2.2]" />
+                      </button>
+                      <div className="space-y-0.5 pt-1">
+                        {['Today', 'This Week', 'This Month', 'This Year', 'All Time'].map(p => (
+                          <button
+                            key={p}
+                            onClick={() => {
+                              setSelectedFilterPeriod(p);
+                              setIsFilterMenuOpen(false);
+                              setFilterMenuTab('root');
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-neutral-100/80 transition-colors text-left text-[15px]"
+                          >
+                            <div className="w-4 flex items-center justify-center">
+                              {selectedFilterPeriod === p && <Check className="w-4 h-4 text-neutral-900 stroke-[2.5]" />}
+                            </div>
+                            <span className={selectedFilterPeriod === p ? 'font-medium text-neutral-900' : 'text-neutral-800 font-normal'}>
+                              {p}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category Submenu (Screenshot 3) */}
+                  {filterMenuTab === 'category' && (
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setFilterMenuTab('root')}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-100/80 transition-colors text-left border-b border-neutral-100/80 pb-3 mb-1"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Tag className="w-5 h-5 text-neutral-800 stroke-[1.8]" />
+                          <div>
+                            <div className="text-[15px] font-medium text-neutral-900 leading-tight">Category</div>
+                            <div className="text-[13px] text-neutral-400 font-normal leading-tight mt-0.5">
+                              {selectedFilterCategory === 'all' ? 'All' : (CATEGORIES.find(c => c.id === selectedFilterCategory)?.name || 'All')}
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-neutral-500 stroke-[2.2]" />
+                      </button>
+                      <div className="space-y-0.5 pt-1 max-h-64 overflow-y-auto scrollbar-none">
+                        <button
+                          onClick={() => {
+                            setSelectedFilterCategory('all');
+                            setIsFilterMenuOpen(false);
+                            setFilterMenuTab('root');
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-neutral-100/80 transition-colors text-left text-[15px]"
+                        >
+                          <div className="w-4 flex items-center justify-center">
+                            {selectedFilterCategory === 'all' && <Check className="w-4 h-4 text-neutral-900 stroke-[2.5]" />}
+                          </div>
+                          <span className={selectedFilterCategory === 'all' ? 'font-medium text-neutral-900' : 'text-neutral-800 font-normal'}>
+                            All
+                          </span>
+                        </button>
+                        {CATEGORIES.filter(c => c.id !== 'none').map(c => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedFilterCategory(c.id);
+                              setIsFilterMenuOpen(false);
+                              setFilterMenuTab('root');
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-neutral-100/80 transition-colors text-left text-[15px]"
+                          >
+                            <div className="w-4 flex items-center justify-center">
+                              {selectedFilterCategory === c.id && <Check className="w-4 h-4 text-neutral-900 stroke-[2.5]" />}
+                            </div>
+                            <span className={selectedFilterCategory === c.id ? 'font-medium text-neutral-900' : 'text-neutral-800 font-normal'}>
+                              {c.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Method Submenu (Screenshot 4) */}
+                  {filterMenuTab === 'payment' && (
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setFilterMenuTab('root')}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-neutral-100/80 transition-colors text-left border-b border-neutral-100/80 pb-3 mb-1"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CreditCard className="w-5 h-5 text-neutral-800 stroke-[1.8]" />
+                          <div>
+                            <div className="text-[15px] font-medium text-neutral-900 leading-tight">Payment Method</div>
+                            <div className="text-[13px] text-neutral-400 font-normal leading-tight mt-0.5">{selectedFilterPayment}</div>
+                          </div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-neutral-500 stroke-[2.2]" />
+                      </button>
+                      <div className="space-y-0.5 pt-1">
+                        {['All', 'Bank Transfer', 'Cash', 'Credit Card', 'Debit Card', 'E-Wallet'].map(pm => (
+                          <button
+                            key={pm}
+                            onClick={() => {
+                              setSelectedFilterPayment(pm);
+                              setIsFilterMenuOpen(false);
+                              setFilterMenuTab('root');
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-neutral-100/80 transition-colors text-left text-[15px]"
+                          >
+                            <div className="w-4 flex items-center justify-center">
+                              {selectedFilterPayment === pm && <Check className="w-4 h-4 text-neutral-900 stroke-[2.5]" />}
+                            </div>
+                            <span className={selectedFilterPayment === pm ? 'font-medium text-neutral-900' : 'text-neutral-800 font-normal'}>
+                              {pm}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-1 hover:text-black active:scale-90 transition-transform"
@@ -397,11 +1012,24 @@ export default function App() {
         {/* Main Content Area (Scrollable iOS View) */}
         <div className="flex-1 overflow-y-auto px-4 pb-28 pt-1 space-y-5 scrollbar-none">
           {/* Filter Notice pill if applied */}
-          {selectedFilterCategory !== 'all' && (
+          {(selectedFilterCategory !== 'all' || selectedFilterPayment !== 'All' || selectedFilterPeriod !== 'This Week') && (
             <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border border-blue-200/80 rounded-2xl text-xs text-blue-800">
-              <span>Filtered by: <strong>{CATEGORIES.find(c => c.id === selectedFilterCategory)?.name}</strong></span>
+              <span>
+                Filtered by:{' '}
+                <strong>
+                  {[
+                    selectedFilterPeriod !== 'This Week' ? selectedFilterPeriod : null,
+                    selectedFilterCategory !== 'all' ? CATEGORIES.find(c => c.id === selectedFilterCategory)?.name : null,
+                    selectedFilterPayment !== 'All' ? selectedFilterPayment : null
+                  ].filter(Boolean).join(', ')}
+                </strong>
+              </span>
               <button
-                onClick={() => setSelectedFilterCategory('all')}
+                onClick={() => {
+                  setSelectedFilterCategory('all');
+                  setSelectedFilterPayment('All');
+                  setSelectedFilterPeriod('This Week');
+                }}
                 className="font-medium underline hover:text-blue-950"
               >
                 Clear
@@ -409,63 +1037,55 @@ export default function App() {
             </div>
           )}
 
-          {/* Weekly Spending Big Card */}
+          {/* Spending Big Card */}
           <div className="bg-white rounded-[28px] p-6 shadow-[0_4px_24px_rgba(0,0,0,0.03)] border border-neutral-100 relative">
-            <p className="text-[14px] font-normal text-neutral-400">Spent this week</p>
+            <p className="text-[14px] font-normal text-neutral-400">{chartTitle}</p>
             <h1 className="text-[34px] font-bold text-black tracking-tight mt-0.5 mb-6">
-              {formatMoney(weeklyTotal)}
+              {formatMoney(chartTotal)}
             </h1>
 
             {/* Custom iOS Bar Chart */}
             <div className="relative pt-4 pb-2">
               {/* Horizontal Guidelines */}
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-7">
-                <div className="flex items-center justify-between w-full">
-                  <div className="w-full border-b border-neutral-200/60" />
-                  <span className="text-[11px] font-medium text-neutral-400 pl-2 w-10 text-right">1 500</span>
-                </div>
-                <div className="flex items-center justify-between w-full">
-                  <div className="w-full border-b border-neutral-200/60" />
-                  <span className="text-[11px] font-medium text-neutral-400 pl-2 w-10 text-right">1 000</span>
-                </div>
-                <div className="flex items-center justify-between w-full">
-                  <div className="w-full border-b border-neutral-200/60" />
-                  <span className="text-[11px] font-medium text-neutral-400 pl-2 w-10 text-right">500</span>
-                </div>
-                <div className="flex items-center justify-between w-full">
-                  <div className="w-full border-b border-neutral-200/60" />
-                  <span className="text-[11px] font-medium text-neutral-400 pl-2 w-10 text-right">0</span>
-                </div>
+                {chartStepLabels.map((stepVal, idx) => (
+                  <div key={idx} className="flex items-center justify-between w-full">
+                    <div className="w-full border-b border-neutral-200/60" />
+                    <span className="text-[11px] font-medium text-neutral-400 pl-2 w-12 text-right">{stepVal}</span>
+                  </div>
+                ))}
               </div>
 
               {/* Bars Container */}
-              <div className="h-44 flex items-end justify-between pr-10 pl-2 pt-2 z-10 relative">
-                {weeklyChartData.map((item) => {
-                  const maxChartVal = 1600;
-                  const heightPercent = Math.min(100, Math.max(0, (item.amount / maxChartVal) * 100));
+              <div className="h-44 flex items-end justify-between pr-12 pl-2 pt-2 z-10 relative">
+                {chartData.map((item) => {
+                  const heightPercent = chartMaxVal > 0 ? Math.min(100, Math.max(0, (item.amount / chartMaxVal) * 100)) : 0;
                   const isHighSpend = item.amount > 0;
+                  const isDense = chartData.length > 7;
 
                   return (
-                    <div key={item.day} className="flex flex-col items-center h-full justify-end group">
+                    <div key={item.day} className="flex flex-col items-center h-full justify-end group flex-1">
                       {/* Bar Column */}
-                      <div className="w-6 sm:w-7 h-full flex items-end justify-center">
+                      <div className={`${isDense ? 'w-3.5 sm:w-4' : (chartData.length <= 4 ? 'w-8 sm:w-9' : 'w-6 sm:w-7')} h-full flex items-end justify-center`}>
                         <div
                           style={{ height: `${heightPercent}%` }}
-                          className={`w-full rounded-t-full rounded-b-md transition-all duration-500 ease-out cursor-pointer ${
+                          className={`w-full rounded-t-full rounded-b-md transition-all duration-500 ease-out cursor-pointer relative ${
                             isHighSpend ? 'bg-black shadow-sm' : 'bg-transparent'
                           }`}
                           title={`${item.day}: ${formatMoney(item.amount)}`}
                         >
                           {/* Tooltip on tap/hover */}
                           {item.amount > 0 && (
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-neutral-900 text-white text-[10px] font-semibold py-1 px-2 rounded-md shadow-lg pointer-events-none -translate-x-1/4 whitespace-nowrap">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-neutral-900 text-white text-[10px] font-semibold py-1 px-2 rounded-md shadow-lg pointer-events-none whitespace-nowrap z-20">
                               {formatMoney(item.amount)}
                             </div>
                           )}
                         </div>
                       </div>
                       {/* X-axis Day Label */}
-                      <span className="text-[11px] font-medium text-neutral-400 mt-3">{item.day}</span>
+                      <span className={`${isDense ? 'text-[10px]' : 'text-[11px]'} font-medium text-neutral-400 mt-3 truncate max-w-full text-center`}>
+                        {item.day}
+                      </span>
                     </div>
                   );
                 })}
@@ -546,6 +1166,8 @@ export default function App() {
             <Plus className="w-7 h-7 stroke-[2.5]" />
           </button>
         </div>
+        </>
+        )}
 
         {/* ------------------------------------------------------------- */}
         {/* MODAL 1: NEW EXPENSE SHEET */}
@@ -557,18 +1179,18 @@ export default function App() {
               <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-neutral-200/50">
                 <button
                   onClick={() => setIsNewExpenseOpen(false)}
-                  className="px-4 py-1.5 bg-white rounded-full text-[14px] font-medium text-neutral-800 shadow-sm border border-neutral-200/60 active:scale-95 transition-transform"
+                  className="text-[16px] font-normal text-blue-600 hover:text-blue-700 active:opacity-60 transition-colors"
                 >
                   Cancel
                 </button>
-                <h3 className="text-[16px] font-bold text-black tracking-tight">New Expense</h3>
+                <h3 className="text-[17px] font-semibold text-black tracking-tight">New Expense</h3>
                 <button
                   onClick={handleSaveExpense}
                   disabled={!newExpenseTitle.trim() || !newExpenseAmount}
-                  className={`px-4 py-1.5 rounded-full text-[14px] font-semibold transition-all shadow-sm ${
+                  className={`text-[16px] font-semibold transition-colors ${
                     newExpenseTitle.trim() && newExpenseAmount
-                      ? 'bg-black text-white active:scale-95'
-                      : 'bg-neutral-200/80 text-neutral-400 cursor-not-allowed'
+                      ? 'text-blue-600 active:opacity-60 hover:text-blue-700'
+                      : 'text-neutral-400 cursor-not-allowed'
                   }`}
                 >
                   Save
@@ -607,34 +1229,98 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Category Row */}
-                  <div
-                    onClick={() => setIsCategoryPickerOpen(true)}
-                    className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-neutral-50 active:bg-neutral-100 transition-colors"
-                  >
-                    <span className="text-[15px] font-normal text-neutral-800">Category</span>
-                    <div className="flex items-center gap-1.5 text-neutral-600">
-                      <span className="text-[15px] font-normal">{selectedCategoryObj.name}</span>
-                      <div className="flex flex-col -space-y-1 text-neutral-400">
-                        <ChevronUp className="w-3 h-3" />
-                        <ChevronDown className="w-3 h-3" />
+                  {/* Category Row (Anchored Dropdown) */}
+                  <div className="relative">
+                    <div
+                      onClick={() => {
+                        setIsExpenseCategoryDropdownOpen(prev => !prev);
+                        setIsExpensePaymentDropdownOpen(false);
+                      }}
+                      className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-neutral-50 active:bg-neutral-100 transition-colors"
+                    >
+                      <span className="text-[15px] font-normal text-neutral-800">Category</span>
+                      <div className="flex items-center gap-1.5 text-neutral-600">
+                        <span className="text-[15px] font-normal">{selectedCategoryObj.name}</span>
+                        <div className="flex flex-col -space-y-1 text-neutral-400">
+                          <ChevronUp className="w-3 h-3" />
+                          <ChevronDown className="w-3 h-3" />
+                        </div>
                       </div>
                     </div>
+
+                    {isExpenseCategoryDropdownOpen && (
+                      <div className="absolute top-12 right-2 z-50 w-60 bg-white/95 backdrop-blur-2xl rounded-[22px] p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.15)] border border-neutral-200/80 animate-in fade-in zoom-in-95 duration-150 max-h-60 overflow-y-auto scrollbar-none">
+                        {CATEGORIES.map(cat => {
+                          const isSelected = newExpenseCategory === cat.id;
+                          const Icon = cat.icon;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                setNewExpenseCategory(cat.id);
+                                setIsExpenseCategoryDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-neutral-100/80 transition-colors text-left text-[14px]"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-6 h-6 rounded-md flex items-center justify-center ${cat.color}`}>
+                                  <Icon className="w-3.5 h-3.5" />
+                                </div>
+                                <span className={isSelected ? 'font-semibold text-black' : 'text-neutral-800 font-normal'}>
+                                  {cat.name}
+                                </span>
+                              </div>
+                              {isSelected && <Check className="w-4 h-4 text-black stroke-[2.5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Payment Row */}
-                  <div
-                    onClick={() => setIsPaymentPickerOpen(true)}
-                    className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-neutral-50 active:bg-neutral-100 transition-colors"
-                  >
-                    <span className="text-[15px] font-normal text-neutral-800">Payment</span>
-                    <div className="flex items-center gap-1.5 text-neutral-600">
-                      <span className="text-[15px] font-normal">{selectedPaymentObj.name}</span>
-                      <div className="flex flex-col -space-y-1 text-neutral-400">
-                        <ChevronUp className="w-3 h-3" />
-                        <ChevronDown className="w-3 h-3" />
+                  {/* Payment Row (Anchored Dropdown) */}
+                  <div className="relative">
+                    <div
+                      onClick={() => {
+                        setIsExpensePaymentDropdownOpen(prev => !prev);
+                        setIsExpenseCategoryDropdownOpen(false);
+                      }}
+                      className="px-4 py-3.5 flex items-center justify-between cursor-pointer hover:bg-neutral-50 active:bg-neutral-100 transition-colors"
+                    >
+                      <span className="text-[15px] font-normal text-neutral-800">Payment</span>
+                      <div className="flex items-center gap-1.5 text-neutral-600">
+                        <span className="text-[15px] font-normal">{selectedPaymentObj.name}</span>
+                        <div className="flex flex-col -space-y-1 text-neutral-400">
+                          <ChevronUp className="w-3 h-3" />
+                          <ChevronDown className="w-3 h-3" />
+                        </div>
                       </div>
                     </div>
+
+                    {isExpensePaymentDropdownOpen && (
+                      <div className="absolute top-12 right-2 z-50 w-56 bg-white/95 backdrop-blur-2xl rounded-[22px] p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.15)] border border-neutral-200/80 animate-in fade-in zoom-in-95 duration-150">
+                        {PAYMENT_METHODS.map(method => {
+                          const isSelected = newExpensePayment === method.id;
+                          return (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => {
+                                setNewExpensePayment(method.id);
+                                setIsExpensePaymentDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-neutral-100/80 transition-colors text-left text-[14px]"
+                            >
+                              <span className={isSelected ? 'font-semibold text-black' : 'text-neutral-800 font-normal'}>
+                                {method.name}
+                              </span>
+                              {isSelected && <Check className="w-4 h-4 text-black stroke-[2.5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Date Row */}
@@ -772,90 +1458,6 @@ export default function App() {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* MODAL 2: CATEGORY PICKER POPOVER / MENU */}
-        {/* ------------------------------------------------------------- */}
-        {isCategoryPickerOpen && (
-          <div
-            onClick={() => setIsCategoryPickerOpen(false)}
-            className="absolute inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-6 animate-in fade-in duration-200"
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[290px] bg-white/95 backdrop-blur-xl rounded-[26px] shadow-2xl border border-white/40 overflow-hidden py-2 divide-y divide-neutral-100 animate-in zoom-in-95 duration-200"
-            >
-              <div className="px-4 py-2">
-                <span className="text-[12px] font-semibold text-neutral-400 uppercase tracking-wider">Select Category</span>
-              </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-neutral-100">
-                {CATEGORIES.map((cat) => {
-                  const isSelected = newExpenseCategory === cat.id;
-                  const Icon = cat.icon;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        setNewExpenseCategory(cat.id);
-                        setIsCategoryPickerOpen(false);
-                      }}
-                      className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-neutral-100/80 active:bg-neutral-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${cat.color}`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <span className={`text-[15px] ${isSelected ? 'font-semibold text-black' : 'text-neutral-800'}`}>
-                          {cat.name}
-                        </span>
-                      </div>
-                      {isSelected && <Check className="w-4 h-4 text-black stroke-[3]" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* MODAL 3: PAYMENT METHOD PICKER */}
-        {/* ------------------------------------------------------------- */}
-        {isPaymentPickerOpen && (
-          <div
-            onClick={() => setIsPaymentPickerOpen(false)}
-            className="absolute inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-6 animate-in fade-in duration-200"
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[280px] bg-white/95 backdrop-blur-xl rounded-[26px] shadow-2xl border border-white/40 overflow-hidden py-2 animate-in zoom-in-95 duration-200"
-            >
-              <div className="px-4 py-2 border-b border-neutral-100">
-                <span className="text-[12px] font-semibold text-neutral-400 uppercase tracking-wider">Payment Method</span>
-              </div>
-              <div className="divide-y divide-neutral-100">
-                {PAYMENT_METHODS.map((method) => {
-                  const isSelected = newExpensePayment === method.id;
-                  return (
-                    <button
-                      key={method.id}
-                      onClick={() => {
-                        setNewExpensePayment(method.id);
-                        setIsPaymentPickerOpen(false);
-                      }}
-                      className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-neutral-100 active:bg-neutral-200 transition-colors"
-                    >
-                      <span className={`text-[15px] ${isSelected ? 'font-semibold text-black' : 'text-neutral-800'}`}>
-                        {method.name}
-                      </span>
-                      {isSelected && <Check className="w-4 h-4 text-black stroke-[3]" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
         {/* MODAL 4: CALENDAR DATE PICKER SHEET */}
         {/* ------------------------------------------------------------- */}
         {isDatePickerOpen && (
@@ -969,7 +1571,7 @@ export default function App() {
                 {isAccountsEditing ? (
                   <button
                     onClick={() => setIsAccountsEditing(false)}
-                    className="px-3.5 py-1.5 bg-neutral-200/80 rounded-full text-[14px] font-medium text-neutral-800"
+                    className="text-[16px] font-normal text-blue-600 hover:text-blue-700 active:opacity-60 transition-colors"
                   >
                     Cancel
                   </button>
@@ -982,11 +1584,11 @@ export default function App() {
                   </button>
                 )}
 
-                <h3 className="text-[16px] font-bold text-black tracking-tight">Accounts</h3>
+                <h3 className="text-[17px] font-semibold text-black tracking-tight">Accounts</h3>
 
                 <button
                   onClick={() => setIsAccountsEditing(!isAccountsEditing)}
-                  className="px-3.5 py-1.5 bg-neutral-200/80 hover:bg-neutral-300 rounded-full text-[14px] font-semibold text-black transition-all active:scale-95"
+                  className="text-[16px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-60 transition-colors"
                 >
                   {isAccountsEditing ? 'Done' : 'Edit'}
                 </button>
@@ -994,21 +1596,28 @@ export default function App() {
 
               {/* Accounts Inset List */}
               <div className="space-y-3 mt-4">
-                {accounts.map((acc) => {
+                {accounts.map((acc, index) => {
                   const isSelected = activeAccountId === acc.id;
+                  const isBeingDragged = draggedAccountIndex === index;
 
                   return (
                     <div
                       key={acc.id}
+                      draggable={isAccountsEditing}
+                      onDragStart={(e) => handleAccountDragStart(e, index)}
+                      onDragOver={(e) => handleAccountDragOver(e, index)}
+                      onDragEnd={handleAccountDragEnd}
                       onClick={() => {
                         if (!isAccountsEditing) {
                           setActiveAccountId(acc.id);
                           setIsAccountsOpen(false);
                         }
                       }}
-                      className={`flex items-center justify-between p-4 bg-neutral-200/70 hover:bg-neutral-200 rounded-[20px] transition-all cursor-pointer ${
+                      className={`flex items-center justify-between p-4 bg-neutral-200/70 hover:bg-neutral-200 rounded-[20px] transition-all ${
+                        isAccountsEditing ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                      } ${
                         isSelected && !isAccountsEditing ? 'ring-2 ring-black/10' : ''
-                      }`}
+                      } ${isBeingDragged ? 'opacity-40 scale-[0.98]' : ''}`}
                     >
                       <div className="flex items-center gap-3.5">
                         {/* Edit delete red button */}
@@ -1040,9 +1649,11 @@ export default function App() {
                       </div>
 
                       {/* Right Indicator / Actions */}
-                      <div>
+                      <div className="flex items-center">
                         {isAccountsEditing ? (
-                          <Menu className="w-5 h-5 text-neutral-400 cursor-grab" />
+                          <div className="p-1 cursor-grab active:cursor-grabbing text-neutral-400 hover:text-black">
+                            <Menu className="w-5 h-5" />
+                          </div>
                         ) : (
                           isSelected && <Check className="w-5 h-5 text-black stroke-[3]" />
                         )}
@@ -1223,6 +1834,43 @@ export default function App() {
                     </div>
                     <ChevronRight className="w-4 h-4 text-neutral-400" />
                   </div>
+                </div>
+              </div>
+
+              {/* Session & Security Section */}
+              <div className="space-y-2">
+                <span className="text-[13px] font-medium text-neutral-400 px-3">Account & Security</span>
+                <div className="bg-white rounded-[24px] shadow-sm border border-neutral-100 divide-y divide-neutral-100 overflow-hidden">
+                  <div className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-[10px] bg-blue-100 flex items-center justify-center text-blue-600">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[15px] font-medium text-black block">{currentUser.name}</span>
+                        <span className="text-[12px] text-neutral-400">{currentUser.email}</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono bg-neutral-100 px-2 py-1 rounded text-neutral-600">
+                      {currentUser.identity.slice(0, 6)}...{currentUser.identity.slice(-4)}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsAuthenticated(false);
+                      setIsSettingsOpen(false);
+                    }}
+                    className="w-full p-4 flex items-center justify-between cursor-pointer hover:bg-red-50/80 active:bg-red-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-[10px] bg-red-100 flex items-center justify-center text-red-600">
+                        <LogOut className="w-4 h-4" />
+                      </div>
+                      <span className="text-[15px] font-semibold text-red-600">Sign Out</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-red-400" />
+                  </button>
                 </div>
               </div>
 

@@ -39,8 +39,21 @@ public struct CustomCalendarPicker: View {
         return days
     }
     
+    private func selectQuickDate(_ date: Date) {
+        Haptics.impact(.light)
+        selectedDate = date
+        currentMonthDate = date
+        dismiss()
+    }
+    
     public var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
+            // Drag Indicator
+            Capsule()
+                .fill(Theme.cardBorder)
+                .frame(width: 36, height: 4)
+                .padding(.top, 8)
+            
             // Sheet Top Header
             HStack {
                 Button {
@@ -48,7 +61,7 @@ public struct CustomCalendarPicker: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(Color(hex: "#E5E5EA") ?? Color(.systemGray5))
+                            .fill(Theme.chipBackground)
                             .frame(width: 32, height: 32)
                         
                         Image(systemName: "xmark")
@@ -59,7 +72,7 @@ public struct CustomCalendarPicker: View {
                 
                 Spacer()
                 
-                Text("Date")
+                Text("Select Date")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Theme.primaryDark)
                 
@@ -69,33 +82,84 @@ public struct CustomCalendarPicker: View {
             }
             .padding(.horizontal, 4)
             
+            // Quick Date Shortcuts (Today / Yesterday)
+            HStack(spacing: 10) {
+                Button {
+                    selectQuickDate(Date())
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 12))
+                        Text("Today")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(calendar.isDateInToday(selectedDate) ? Theme.buttonForeground : Theme.primaryDark)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(calendar.isDateInToday(selectedDate) ? Theme.buttonDark : Theme.chipBackground)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                
+                Button {
+                    let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+                    selectQuickDate(yesterday)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 11))
+                        Text("Yesterday")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(calendar.isDateInYesterday(selectedDate) ? Theme.buttonForeground : Theme.primaryDark)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(calendar.isDateInYesterday(selectedDate) ? Theme.buttonDark : Theme.chipBackground)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 4)
+            
             // Month Navigation Row
             HStack {
                 Text(monthYearString)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Theme.primaryDark)
                 
                 Spacer()
                 
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Button {
-                        if let prev = calendar.date(byAdding: .month, value: -1, to: currentMonthDate) {
-                            currentMonthDate = prev
+                        Haptics.selection()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if let prev = calendar.date(byAdding: .month, value: -1, to: currentMonthDate) {
+                                currentMonthDate = prev
+                            }
                         }
                     } label: {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Theme.primaryDark)
+                            .frame(width: 32, height: 32)
+                            .background(Theme.chipBackground)
+                            .clipShape(Circle())
                     }
                     
                     Button {
-                        if let next = calendar.date(byAdding: .month, value: 1, to: currentMonthDate) {
-                            currentMonthDate = next
+                        Haptics.selection()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if let next = calendar.date(byAdding: .month, value: 1, to: currentMonthDate) {
+                                currentMonthDate = next
+                            }
                         }
                     } label: {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Theme.primaryDark)
+                            .frame(width: 32, height: 32)
+                            .background(Theme.chipBackground)
+                            .clipShape(Circle())
                     }
                 }
             }
@@ -121,7 +185,7 @@ public struct CustomCalendarPicker: View {
                         let dayNum = calendar.component(.day, from: dayDate)
                         
                         Button {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            Haptics.impact(.light)
                             selectedDate = dayDate
                             dismiss()
                         } label: {
@@ -131,11 +195,18 @@ public struct CustomCalendarPicker: View {
                                 .background(
                                     Circle()
                                         .fill(
-                                            isSelected ? Theme.buttonDark : (isToday ? Color.black.opacity(0.1) : Color.clear)
+                                            isSelected
+                                                ? Theme.buttonDark
+                                                : (isToday ? Theme.chipBackground : Color.clear)
                                         )
                                 )
+                                .overlay(
+                                    isToday && !isSelected
+                                        ? Circle().strokeBorder(Theme.accentBlue, lineWidth: 1.5)
+                                        : nil
+                                )
                                 .foregroundStyle(
-                                    isSelected ? .white : Theme.primaryDark
+                                    isSelected ? Theme.buttonForeground : Theme.primaryDark
                                 )
                         }
                         .buttonStyle(.plain)
@@ -146,7 +217,9 @@ public struct CustomCalendarPicker: View {
             }
         }
         .padding(20)
-        .background(Theme.appBackground)
+        .background(Theme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+        .presentationDragIndicator(.visible)
     }
 }
+

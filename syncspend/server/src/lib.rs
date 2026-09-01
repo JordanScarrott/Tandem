@@ -1,6 +1,6 @@
-use spacetimedb::{table, reducer, Identity, Timestamp, ReducerContext, Table};
+use spacetimedb::{table, reducer, view, Identity, Timestamp, ReducerContext, ViewContext, Table};
 
-#[table(name = user_profile, public)]
+#[table(name = user_profile)]
 pub struct UserProfile {
     #[primary_key]
     pub identity: Identity,
@@ -10,11 +10,12 @@ pub struct UserProfile {
     pub created_at: Timestamp,
 }
 
-#[table(name = category, public)]
+#[table(name = category)]
 pub struct Category {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
+    #[index(btree)]
     pub owner: Identity,
     pub name: String,
     pub icon: String, // SF Symbol name e.g. "cart.fill"
@@ -23,34 +24,38 @@ pub struct Category {
     pub is_archived: bool,
 }
 
-#[table(name = couple_space, public)]
+#[table(name = couple_space)]
 pub struct CoupleSpace {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
     pub name: String,
+    #[index(btree)]
     pub partner_a: Identity,
-    pub partner_b: Option<Identity>,
+    #[index(btree)]
+    pub partner_b: Identity,
     pub split_ratio_a: u8, // e.g. 50 (for 50/50) or 60 (for 60/40)
     pub split_ratio_b: u8,
     pub created_at: Timestamp,
 }
 
-#[table(name = couple_invite, public)]
+#[table(name = couple_invite)]
 pub struct CoupleInvite {
     #[primary_key]
     pub code: String, // 6-character code e.g. "XK92LM"
     pub space_id: u64,
+    #[index(btree)]
     pub creator: Identity,
     pub expires_at: Timestamp,
     pub is_accepted: bool,
 }
 
-#[table(name = expense, public)]
+#[table(name = expense)]
 pub struct Expense {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
+    #[index(btree)]
     pub owner: Identity,
     pub amount_cents: i64,
     pub currency: String,
@@ -65,17 +70,99 @@ pub struct Expense {
     pub split_mode: String, // "PERSONAL", "EQUAL", "PROPORTIONAL", "PAID_FOR_PARTNER"
 }
 
-#[table(name = expense_split, public)]
+#[table(name = expense_split)]
 pub struct ExpenseSplit {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
+    #[index(btree)]
     pub expense_id: u64,
+    #[index(btree)]
     pub space_id: u64,
+    #[index(btree)]
     pub payer: Identity,
     pub partner_a_share_cents: i64,
     pub partner_b_share_cents: i64,
     pub created_at: Timestamp,
+}
+
+// --- Views ---
+
+#[view(name = my_categories, public)]
+pub fn my_categories(ctx: &ViewContext) -> Vec<Category> {
+    ctx.db.category()
+        .owner()
+        .filter(&ctx.sender)
+        .filter(|cat| !cat.is_archived)
+        .collect()
+}
+
+#[view(name = my_expenses, public)]
+pub fn my_expenses(ctx: &ViewContext) -> Vec<Expense> {
+    let mut expenses: Vec<Expense> = ctx.db.expense()
+        .owner()
+        .filter(&ctx.sender)
+        .filter(|e| e.deleted_at.is_none())
+        .collect();
+
+    let mut couple_spaces: Vec<CoupleSpace> = ctx.db.couple_space()
+        .partner_a()
+        .filter(&ctx.sender)
+        .collect();
+
+    couple_spaces.extend(
+        ctx.db.couple_space()
+            .partner_b()
+            .filter(&ctx.sender)
+    );
+
+    let empty_partner = Identity::from_byte_array([0; 32]);
+    for space in couple_spaces {
+        let partner = if space.partner_a == ctx.sender {
+            space.partner_b
+        } else {
+            space.partner_a
+        };
+
+        if partner != empty_partner {
+            let partner_expenses = ctx.db.expense()
+                .owner()
+                .filter(&partner)
+                .filter(|e| e.space_id == Some(space.id) && e.deleted_at.is_none());
+            expenses.extend(partner_expenses);
+        }
+    }
+
+    expenses
+}
+
+#[view(name = my_profile, public)]
+pub fn my_profile(ctx: &ViewContext) -> Option<UserProfile> {
+    ctx.db.user_profile().identity().find(ctx.sender)
+}
+
+#[view(name = my_couple_space, public)]
+pub fn my_couple_space(ctx: &ViewContext) -> Option<CoupleSpace> {
+    if let Some(space) = ctx.db.couple_space().partner_a().filter(&ctx.sender).next() {
+        return Some(space);
+    }
+    ctx.db.couple_space().partner_b().filter(&ctx.sender).next()
+}
+
+// --- Auth Validation Helper ---
+
+fn verify_caller_auth(ctx: &ReducerContext) -> Result<(), String> {
+    if let Some(jwt) = ctx.sender_auth().jwt() {
+        let issuer = jwt.issuer();
+        // Allow SpacetimeDB OIDC issuer, maincloud/localhost identity token issuers
+        if issuer != "https://auth.spacetimedb.com/oidc"
+            && issuer != "https://maincloud.spacetimedb.com"
+            && issuer != "localhost"
+            && !issuer.ends_with(".spacetimedb.com") {
+            return Err("Unauthorized token issuer".into());
+        }
+    }
+    Ok(())
 }
 
 // --- Helper Functions ---
@@ -98,6 +185,18 @@ fn generate_invite_code(timestamp: Timestamp, sender: Identity, space_id: u64) -
     code
 }
 
+fn is_authorized_expense_actor(ctx: &ReducerContext, expense: &Expense) -> bool {
+    if expense.owner == ctx.sender {
+        return true;
+    }
+    if let Some(space_id) = expense.space_id {
+        if let Some(space) = ctx.db.couple_space().id().find(space_id) {
+            return space.partner_a == ctx.sender || space.partner_b == ctx.sender;
+        }
+    }
+    false
+}
+
 // --- Reducers ---
 
 #[reducer]
@@ -107,6 +206,8 @@ pub fn initialize_user_profile(
     default_currency: String,
     billing_cycle_start_day: u8,
 ) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     if ctx.db.user_profile().identity().find(ctx.sender).is_some() {
         return Ok(()); // Already initialized
     }
@@ -151,6 +252,8 @@ pub fn create_category(
     color_hex: String,
     monthly_budget_cents: Option<i64>,
 ) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     if name.trim().is_empty() {
         return Err("Category name cannot be empty".into());
     }
@@ -175,6 +278,8 @@ pub fn create_couple_space(
     split_ratio_a: u8,
     split_ratio_b: u8,
 ) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     if split_ratio_a + split_ratio_b != 100 {
         return Err("Split ratios must sum to 100%".into());
     }
@@ -183,7 +288,7 @@ pub fn create_couple_space(
         id: 0,
         name: if name.trim().is_empty() { "Couple Space".into() } else { name.trim().into() },
         partner_a: ctx.sender,
-        partner_b: None,
+        partner_b: Identity::from_byte_array([0; 32]),
         split_ratio_a,
         split_ratio_b,
         created_at: ctx.timestamp,
@@ -208,6 +313,8 @@ pub fn create_couple_space(
 
 #[reducer]
 pub fn join_couple_space(ctx: &ReducerContext, invite_code: String) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     let code_upper = invite_code.trim().to_uppercase();
     let mut invite = ctx.db.couple_invite().code().find(&code_upper)
         .ok_or("Invalid invite code")?;
@@ -227,11 +334,12 @@ pub fn join_couple_space(ctx: &ReducerContext, invite_code: String) -> Result<()
     let mut space = ctx.db.couple_space().id().find(invite.space_id)
         .ok_or("Couple space not found")?;
 
-    if space.partner_b.is_some() {
+    let empty_partner = Identity::from_byte_array([0; 32]);
+    if space.partner_b != empty_partner {
         return Err("Couple space is already full".into());
     }
 
-    space.partner_b = Some(ctx.sender);
+    space.partner_b = ctx.sender;
     ctx.db.couple_space().id().update(space);
 
     invite.is_accepted = true;
@@ -247,6 +355,8 @@ pub fn update_split_ratios(
     split_ratio_a: u8,
     split_ratio_b: u8,
 ) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     if split_ratio_a + split_ratio_b != 100 {
         return Err("Split ratios must sum to 100%".into());
     }
@@ -254,7 +364,7 @@ pub fn update_split_ratios(
     let mut space = ctx.db.couple_space().id().find(space_id)
         .ok_or("Couple space not found")?;
 
-    if space.partner_a != ctx.sender && space.partner_b != Some(ctx.sender) {
+    if space.partner_a != ctx.sender && space.partner_b != ctx.sender {
         return Err("Unauthorized to modify this couple space".into());
     }
 
@@ -275,6 +385,8 @@ pub fn log_expense(
     note: String,
     spent_at_millis: i64,
 ) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     if amount_cents <= 0 {
         return Err("Amount must be greater than zero".into());
     }
@@ -317,6 +429,8 @@ pub fn log_couple_expense(
     spent_at_millis: i64,
     split_mode: String,
 ) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     if amount_cents <= 0 {
         return Err("Amount must be greater than zero".into());
     }
@@ -325,10 +439,18 @@ pub fn log_couple_expense(
         .ok_or("Couple space not found")?;
 
     let is_partner_a = space.partner_a == ctx.sender;
-    let is_partner_b = space.partner_b == Some(ctx.sender);
+    let is_partner_b = space.partner_b == ctx.sender;
 
     if !is_partner_a && !is_partner_b {
         return Err("Unauthorized to log expense in this couple space".into());
+    }
+
+    let category = ctx.db.category().id().find(category_id)
+        .ok_or("Category not found")?;
+
+    let is_cat_owner = category.owner == ctx.sender || category.owner == space.partner_a || category.owner == space.partner_b;
+    if !is_cat_owner {
+        return Err("Unauthorized category access".into());
     }
 
     let (share_a_cents, share_b_cents) = match split_mode.to_uppercase().as_str() {
@@ -388,10 +510,12 @@ pub fn log_couple_expense(
 
 #[reducer]
 pub fn soft_delete_expense(ctx: &ReducerContext, expense_id: u64) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     let mut expense = ctx.db.expense().id().find(expense_id)
         .ok_or("Expense not found")?;
 
-    if expense.owner != ctx.sender {
+    if !is_authorized_expense_actor(ctx, &expense) {
         return Err("Unauthorized to delete this record".into());
     }
 
@@ -404,10 +528,12 @@ pub fn soft_delete_expense(ctx: &ReducerContext, expense_id: u64) -> Result<(), 
 
 #[reducer]
 pub fn restore_expense(ctx: &ReducerContext, expense_id: u64) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
     let mut expense = ctx.db.expense().id().find(expense_id)
         .ok_or("Expense not found")?;
 
-    if expense.owner != ctx.sender {
+    if !is_authorized_expense_actor(ctx, &expense) {
         return Err("Unauthorized to restore this record".into());
     }
 

@@ -55,6 +55,7 @@ public struct SearchFilterSheet: View {
                         
                         TextField("Search transactions...", text: $searchQuery)
                             .font(.system(size: 15))
+                            .foregroundStyle(Theme.primaryDark)
                         
                         if !searchQuery.isEmpty {
                             Button {
@@ -68,7 +69,7 @@ public struct SearchFilterSheet: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color.white)
+                    .background(Theme.cardBackground)
                     .clipShape(Capsule())
                     .overlay(
                         Capsule()
@@ -88,14 +89,17 @@ public struct SearchFilterSheet: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         Button {
-                            selectedCategoryId = nil
+                            Haptics.selection()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                selectedCategoryId = nil
+                            }
                         } label: {
                             Text("All Categories")
                                 .font(.system(size: 13, weight: .medium))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(selectedCategoryId == nil ? Theme.buttonDark : Color.white)
-                                .foregroundStyle(selectedCategoryId == nil ? .white : Theme.primaryDark)
+                                .background(selectedCategoryId == nil ? Theme.buttonDark : Theme.cardBackground)
+                                .foregroundStyle(selectedCategoryId == nil ? Theme.buttonForeground : Theme.primaryDark)
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule()
@@ -106,19 +110,26 @@ public struct SearchFilterSheet: View {
                         ForEach(categories) { cat in
                             let isSelected = selectedCategoryId == cat.id
                             Button {
-                                selectedCategoryId = isSelected ? nil : cat.id
+                                Haptics.selection()
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    selectedCategoryId = isSelected ? nil : cat.id
+                                }
                             } label: {
-                                Text(cat.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(isSelected ? Theme.buttonDark : Color.white)
-                                    .foregroundStyle(isSelected ? .white : Theme.primaryDark)
-                                    .clipShape(Capsule())
-                                    .overlay(
-                                        Capsule()
-                                            .strokeBorder(isSelected ? Color.clear : Theme.cardBorder, lineWidth: 1)
-                                    )
+                                HStack(spacing: 4) {
+                                    Image(systemName: cat.icon)
+                                        .font(.system(size: 11))
+                                    Text(cat.name)
+                                        .font(.system(size: 13, weight: .medium))
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(isSelected ? Theme.buttonDark : Theme.cardBackground)
+                                .foregroundStyle(isSelected ? Theme.buttonForeground : Theme.primaryDark)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(isSelected ? Color.clear : Theme.cardBorder, lineWidth: 1)
+                                )
                             }
                         }
                     }
@@ -128,9 +139,10 @@ public struct SearchFilterSheet: View {
                 // Results List
                 VStack(alignment: .leading, spacing: 8) {
                     Text("MATCHING TRANSACTIONS (\(filteredExpenses.count))")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Theme.mutedText)
                         .padding(.horizontal, 20)
+                        .tracking(0.5)
                     
                     if filteredExpenses.isEmpty {
                         VStack(spacing: 6) {
@@ -146,6 +158,16 @@ public struct SearchFilterSheet: View {
                                 ForEach(Array(filteredExpenses.enumerated()), id: \.element.id) { index, item in
                                     let cat = categories.first(where: { $0.id == item.categoryId })
                                     HStack(spacing: 12) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .fill((cat?.color ?? Theme.accentBlue).opacity(0.15))
+                                                .frame(width: 36, height: 36)
+                                            
+                                            Image(systemName: cat?.icon ?? "tag.fill")
+                                                .font(.system(size: 14, weight: .semibold))
+                                                .foregroundStyle(cat?.color ?? Theme.primaryDark)
+                                        }
+                                        
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(item.note.isEmpty ? (cat?.name ?? "Expense") : item.note)
                                                 .font(.system(size: 15, weight: .semibold))
@@ -165,7 +187,7 @@ public struct SearchFilterSheet: View {
                                     .padding(14)
                                     
                                     if index < filteredExpenses.count - 1 {
-                                        Divider().padding(.leading, 14)
+                                        Divider().padding(.leading, 62)
                                     }
                                 }
                             }
@@ -183,6 +205,8 @@ public struct SearchFilterSheet: View {
                 Spacer()
             }
             .background(Theme.appBackground)
+            .presentationDragIndicator(.visible)
         }
     }
 }
+

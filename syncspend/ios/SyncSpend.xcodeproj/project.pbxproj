@@ -34,6 +34,11 @@
 		DAAA7CF3DE7A3002D5248423 /* TransactionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E073CFECBD367F12C8D41FC5 /* TransactionRowView.swift */; };
 		DFB5CF166E40E26B21DFADD4 /* LogExpenseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D3EBDC9A17374CD1A54370 /* LogExpenseView.swift */; };
 		E66B35A79337DB67C39DF65D /* SpacetimeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 722CECDB65D11FB64AE05681 /* SpacetimeService.swift */; };
+		B8C2D3E4F50123456789A1B2 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B1C2D3E4F50123456789A1 /* KeychainManager.swift */; };
+		B8C2D3E4F50123456789A3B4 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B1C2D3E4F50123456789A2 /* AuthService.swift */; };
+		B8C2D3E4F50123456789B1B2 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B1C2D3E4F50123456789B1 /* UserProfile.swift */; };
+		B8C2D3E4F50123456789B3B4 /* CoupleSpace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B1C2D3E4F50123456789B2 /* CoupleSpace.swift */; };
+		B8C2D3E4F50123456789B5B6 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B1C2D3E4F50123456789B3 /* LoginView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -66,6 +71,11 @@
 		B459C4716EC743AE0E80FC95 /* SyncSpendApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSpendApp.swift; sourceTree = "<group>"; };
 		E073CFECBD367F12C8D41FC5 /* TransactionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRowView.swift; sourceTree = "<group>"; };
 		E808FC4A7B19DB2B8387D6C9 /* PaymentMethodPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentMethodPickerSheet.swift; sourceTree = "<group>"; };
+		A8B1C2D3E4F50123456789A1 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		A8B1C2D3E4F50123456789A2 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		A8B1C2D3E4F50123456789B1 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		A8B1C2D3E4F50123456789B2 /* CoupleSpace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoupleSpace.swift; sourceTree = "<group>"; };
+		A8B1C2D3E4F50123456789B3 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -94,6 +104,8 @@
 		22A786A8A235CAE3B5532293 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A8B1C2D3E4F50123456789A2 /* AuthService.swift */,
+				A8B1C2D3E4F50123456789A1 /* KeychainManager.swift */,
 				722CECDB65D11FB64AE05681 /* SpacetimeService.swift */,
 			);
 			path = Services;
@@ -114,6 +126,8 @@
 				09D038B97F175ABABB46DD62 /* Category.swift */,
 				1E2B5A12AC6BE99BC9865BC1 /* Currency.swift */,
 				77BC1C2C1AFCF73765CFA036 /* Expense.swift */,
+				A8B1C2D3E4F50123456789B1 /* UserProfile.swift */,
+				A8B1C2D3E4F50123456789B2 /* CoupleSpace.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -156,6 +170,7 @@
 				40904EC90B25C396E1915B00 /* AccountsSheet.swift */,
 				68D0795B233B114ECD9B1A3E /* AddCategorySheet.swift */,
 				67D3EBDC9A17374CD1A54370 /* LogExpenseView.swift */,
+				A8B1C2D3E4F50123456789B3 /* LoginView.swift */,
 				65D1103BD0271C70CD2754D5 /* MainDashboardView.swift */,
 				7C2CB83DAD3D68573020832A /* NewExpenseSheet.swift */,
 				086B722DD203895B1735CF05 /* ProUpgradeModal.swift */,
@@ -254,12 +269,17 @@
 				BBD60F9542A6388BB69194EF /* SettingsView.swift in Sources */,
 				A4630AD25CA5562C6DD6C840 /* SettingsViewModel.swift in Sources */,
 				AB8EB0A6634015891D9F2787 /* SmartSuggestionsView.swift in Sources */,
+				B8C2D3E4F50123456789A3B4 /* AuthService.swift in Sources */,
+				B8C2D3E4F50123456789A1B2 /* KeychainManager.swift in Sources */,
 				E66B35A79337DB67C39DF65D /* SpacetimeService.swift in Sources */,
 				400FAFEF3D9E827BF770FE2F /* SyncSpendApp.swift in Sources */,
 				A1199F7E54D1C91D57F39EFB /* Theme.swift in Sources */,
 				5688E2A0C948EAF01E2AB123 /* TransactionGroupListView.swift in Sources */,
 				DAAA7CF3DE7A3002D5248423 /* TransactionRowView.swift in Sources */,
 				0102F2F42014AA2F2A3019F7 /* UndoFloatingBar.swift in Sources */,
+				B8C2D3E4F50123456789B1B2 /* UserProfile.swift in Sources */,
+				B8C2D3E4F50123456789B3B4 /* CoupleSpace.swift in Sources */,
+				B8C2D3E4F50123456789B5B6 /* LoginView.swift in Sources */,
 				D7A93DF23E191B19C4743D14 /* WeeklySpendingCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

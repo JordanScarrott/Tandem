@@ -10,7 +10,10 @@ public struct AccountPickerPill: View {
     }
     
     public var body: some View {
-        Button(action: action) {
+        Button {
+            Haptics.selection()
+            action()
+        } label: {
             HStack(spacing: 6) {
                 Text(accountName)
                     .font(.system(size: 15, weight: .semibold))
@@ -18,22 +21,23 @@ public struct AccountPickerPill: View {
                 
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.mutedText)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(Color.white.opacity(0.85))
+                    .fill(Theme.cardBackground.opacity(0.85))
                     .background(.ultraThinMaterial, in: Capsule())
             )
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+                    .strokeBorder(Theme.cardBorder, lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }
 }
+
