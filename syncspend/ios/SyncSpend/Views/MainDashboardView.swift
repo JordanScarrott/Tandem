@@ -8,6 +8,7 @@ public struct MainDashboardView: View {
     @State private var showingAccounts: Bool = false
     @State private var showingSettings: Bool = false
     @State private var showingSearch: Bool = false
+    @State private var selectedExpenseToEdit: ExpenseItem? = nil
     
     public init() {}
     
@@ -176,6 +177,9 @@ public struct MainDashboardView: View {
                             onDelete: { item in
                                 viewModel.deleteExpense(item)
                             },
+                            onEdit: { item in
+                                selectedExpenseToEdit = item
+                            },
                             onLogExpense: {
                                 showingNewExpense = true
                             }
@@ -235,6 +239,18 @@ public struct MainDashboardView: View {
                     }
                 )
             }
+            .sheet(item: $selectedExpenseToEdit) { expense in
+                NewExpenseSheet(
+                    categories: viewModel.categories,
+                    currency: viewModel.currency,
+                    accountId: viewModel.activeAccountId,
+                    smartSuggestionsEnabled: viewModel.smartSuggestionsEnabled,
+                    expenseToEdit: expense,
+                    onExpenseSaved: {
+                        Task { await viewModel.loadExpenses() }
+                    }
+                )
+            }
             .sheet(isPresented: $showingAccounts) {
                 AccountsSheet(
                     accounts: $viewModel.accounts,
@@ -262,7 +278,10 @@ public struct MainDashboardView: View {
                     selectedCategoryId: $viewModel.selectedFilterCategoryId,
                     categories: viewModel.categories,
                     expenses: viewModel.accountExpenses,
-                    currency: viewModel.currency
+                    currency: viewModel.currency,
+                    onSelectExpense: { item in
+                        selectedExpenseToEdit = item
+                    }
                 )
             }
             .task {
@@ -271,4 +290,5 @@ public struct MainDashboardView: View {
         }
     }
 }
+
 

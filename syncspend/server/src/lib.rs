@@ -543,3 +543,95 @@ pub fn restore_expense(ctx: &ReducerContext, expense_id: u64) -> Result<(), Stri
 
     Ok(())
 }
+
+#[reducer]
+pub fn update_expense(
+    ctx: &ReducerContext,
+    expense_id: u64,
+    amount_cents: i64,
+    currency: String,
+    category_id: u64,
+    payment_method: String,
+    note: String,
+    spent_at_millis: i64,
+    split_mode: String,
+) -> Result<(), String> {
+    verify_caller_auth(ctx)?;
+
+    if amount_cents <= 0 {
+        return Err("Amount must be greater than zero".into());
+    }
+
+    let mut expense = ctx.db.expense().id().find(expense_id)
+        .ok_or("Expense not found")?;
+
+    if !is_authorized_expense_actor(ctx, &expense) {
+        return Err("Unauthorized to modify this record".into());
+    }
+
+    let category = ctx.db.category().id().find(category_id)
+        .ok_or("Category not found")?;
+
+    if let Some(space_id) = expense.space_id {
+        let space = ctx.db.couple_space().id().find(space_id)
+            .ok_or("Couple space not found")?;
+
+        let is_cat_owner = category.owner == ctx.sender || category.owner == space.partner_a || category.owner == space.partner_b;
+        if !is_cat_owner {
+            return Err("Unauthorized category access".into());
+        }
+
+        let is_partner_a = expense.owner == space.partner_a;
+
+        let (share_a_cents, share_b_cents) = match split_mode.to_uppercase().as_str() {
+            "EQUAL" => {
+                let half = amount_cents / 2;
+                (half, amount_cents - half)
+            }
+            "PROPORTIONAL" => {
+                let share_a = (amount_cents * space.split_ratio_a as i64 + 50) / 100;
+                (share_a, amount_cents - share_a)
+            }
+            "PAID_FOR_PARTNER" => {
+                if is_partner_a {
+                    (0, amount_cents)
+                } else {
+                    (amount_cents, 0)
+                }
+            }
+            _ => {
+                if is_partner_a {
+                    (amount_cents, 0)
+                } else {
+                    (0, amount_cents)
+                }
+            }
+        };
+
+        if let Some(mut split) = ctx.db.expense_split().expense_id().filter(&expense.id).next() {
+            split.partner_a_share_cents = share_a_cents;
+            split.partner_b_share_cents = share_b_cents;
+            ctx.db.expense_split().id().update(split);
+        }
+
+        expense.split_mode = split_mode.to_uppercase();
+    } else {
+        if category.owner != ctx.sender {
+            return Err("Unauthorized category access".into());
+        }
+        expense.split_mode = "PERSONAL".into();
+    }
+
+    expense.amount_cents = amount_cents;
+    expense.currency = currency.to_uppercase();
+    expense.category_id = category_id;
+    expense.payment_method = payment_method;
+    expense.note = note;
+    expense.spent_at_millis = spent_at_millis;
+    expense.updated_at = ctx.timestamp;
+
+    ctx.db.expense().id().update(expense);
+
+    Ok(())
+}
+

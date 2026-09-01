@@ -147,6 +147,25 @@ public final class SpacetimeService {
         )
     }
 
+    /// Invokes the `update_expense` reducer over HTTP to update an existing expense record
+    public func updateExpense(
+        expenseId: UInt64,
+        amountCents: Int64,
+        currency: String = "ZAR",
+        categoryId: UInt64,
+        paymentMethod: String,
+        note: String,
+        spentDate: Date,
+        splitMode: String = "PERSONAL"
+    ) async throws {
+        let spentMillis = Int64(spentDate.timeIntervalSince1970 * 1000.0)
+        try await callReducer(
+            name: "update_expense",
+            payload: [expenseId, amountCents, currency, categoryId, paymentMethod, note, spentMillis, splitMode]
+        )
+    }
+
+
     /// Creates a new couple space
     public func createCoupleSpace(name: String, splitRatioA: UInt8 = 50, splitRatioB: UInt8 = 50) async throws {
         try await callReducer(

@@ -5,17 +5,20 @@ public struct TransactionRowView: View {
     public let category: CategoryItem?
     public let currency: CurrencyItem
     public let onDelete: () -> Void
+    public let onTap: (() -> Void)?
     
     public init(
         expense: ExpenseItem,
         category: CategoryItem?,
         currency: CurrencyItem,
-        onDelete: @escaping () -> Void
+        onDelete: @escaping () -> Void,
+        onTap: (() -> Void)? = nil
     ) {
         self.expense = expense
         self.category = category
         self.currency = currency
         self.onDelete = onDelete
+        self.onTap = onTap
     }
     
     private var formattedDateString: String {
@@ -59,6 +62,13 @@ public struct TransactionRowView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(Theme.cardBackground)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let onTap = onTap {
+                Haptics.impact(.light)
+                onTap()
+            }
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 Haptics.impact(.medium)
@@ -69,4 +79,5 @@ public struct TransactionRowView: View {
         }
     }
 }
+
 

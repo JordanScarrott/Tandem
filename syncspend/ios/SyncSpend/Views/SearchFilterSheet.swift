@@ -6,6 +6,7 @@ public struct SearchFilterSheet: View {
     public let categories: [CategoryItem]
     public let expenses: [ExpenseItem]
     public let currency: CurrencyItem
+    public let onSelectExpense: ((ExpenseItem) -> Void)?
     @Environment(\.dismiss) private var dismiss
     
     public init(
@@ -13,14 +14,17 @@ public struct SearchFilterSheet: View {
         selectedCategoryId: Binding<UInt64?>,
         categories: [CategoryItem],
         expenses: [ExpenseItem],
-        currency: CurrencyItem
+        currency: CurrencyItem,
+        onSelectExpense: ((ExpenseItem) -> Void)? = nil
     ) {
         self._searchQuery = searchQuery
         self._selectedCategoryId = selectedCategoryId
         self.categories = categories
         self.expenses = expenses
         self.currency = currency
+        self.onSelectExpense = onSelectExpense
     }
+
     
     private var filteredExpenses: [ExpenseItem] {
         var list = expenses
@@ -185,8 +189,19 @@ public struct SearchFilterSheet: View {
                                             .foregroundStyle(Theme.primaryDark)
                                     }
                                     .padding(14)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        if let onSelect = onSelectExpense {
+                                            Haptics.impact(.light)
+                                            dismiss()
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                                onSelect(item)
+                                            }
+                                        }
+                                    }
                                     
                                     if index < filteredExpenses.count - 1 {
+
                                         Divider().padding(.leading, 62)
                                     }
                                 }

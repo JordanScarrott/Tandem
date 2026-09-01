@@ -1,42 +1,44 @@
-# Handoff: Authentication & Security Implementation (Audit Remediations Complete)
+# Handoff: Expense Tap-to-Edit & UI Enhancements
 
-## 1. Status Overview
-All 4 remediation action items identified in the code review have been **successfully implemented, tested, and validated**:
-- Proactive JWT expiration check and launch-time silent refresh in `AuthService.swift`
-- Generic `callReducer` extraction and boilerplate elimination in `SpacetimeService.swift`
-- Deduplicated `is_authorized_expense_actor` helper in Rust server (`lib.rs`)
-- Decoupled `AuthService` from direct `SpacetimeService` state mutations
+## 1. Status: COMPLETED ✅
+Expense Tap-to-Edit and UI enhancements are implemented, published to SpacetimeDB Maincloud, and verified on iOS.
 
 ---
 
-## 2. Completed Action Items Summary
+## 2. Summary of Implementation
 
-### [x] **Item 1: Proactive JWT Expiration Check & Silent Refresh on Launch**
-- **File**: [`syncspend/ios/SyncSpend/Services/AuthService.swift`](file:///Users/jordanscarrott/Documents/GitHub/personal/Tandem/syncspend/ios/SyncSpend/Services/AuthService.swift)
-- Extracted and stored `exp` claim (`tokenExpirationTimestamp`) in `parseAndPopulateClaims(from:)`.
-- In `checkExistingSession()`, evaluated whether token is expired or within a 60-second window; triggers proactive silent token refresh, falling back cleanly to `logout()` if refresh fails.
+### Backend (`syncspend/server/src/lib.rs`)
+- Added `update_expense` reducer:
+  ```rust
+  #[reducer]
+  pub fn update_expense(
+      ctx: &ReducerContext,
+      expense_id: u64,
+      amount_cents: i64,
+      currency: String,
+      category_id: u64,
+      payment_method: String,
+      note: String,
+      spent_at_millis: i64,
+      split_mode: String,
+  ) -> Result<(), String>
+  ```
+- Enforces authentication (`verify_caller_auth`), ownership/space authorization (`is_authorized_expense_actor`), category ownership validation, and recalculates couple space split shares in `ExpenseSplit` if applicable.
+- Published to SpacetimeDB Maincloud (`ad-guitar-1941`).
 
-### [x] **Item 2: Eliminate Reducer Call Boilerplate in `SpacetimeService`**
-- **File**: [`syncspend/ios/SyncSpend/Services/SpacetimeService.swift`](file:///Users/jordanscarrott/Documents/GitHub/personal/Tandem/syncspend/ios/SyncSpend/Services/SpacetimeService.swift)
-- Extracted `private func callReducer(name: String, payload: [Any]) async throws`.
-- Refactored all 8 reducer invocations (`initializeUserProfile`, `createCategory`, `logExpense`, `logCoupleExpense`, `createCoupleSpace`, `joinCoupleSpace`, `softDeleteExpense`, `restoreExpense`) to use the helper.
+### Networking & State (`SpacetimeService.swift`, `NewExpenseViewModel.swift`)
+- Added `updateExpense(...)` in `SpacetimeService.swift` calling the `update_expense` reducer over HTTP.
+- Extended `NewExpenseViewModel.swift` with `editingExpenseId`, `isEditing`, `populate(with:)`, and updated `saveExpense()` to dynamically branch between update and create operations.
 
-### [x] **Item 3: Deduplicate Couple Partner Authorization in Rust Server**
-- **File**: [`syncspend/server/src/lib.rs`](file:///Users/jordanscarrott/Documents/GitHub/personal/Tandem/syncspend/server/src/lib.rs)
-- Added `fn is_authorized_expense_actor(ctx: &ReducerContext, expense: &Expense) -> bool`.
-- Deduplicated authorization check across `soft_delete_expense` and `restore_expense`.
-- Re-published module to SpacetimeDB Maincloud (`ad-guitar-1941`).
-
-### [x] **Item 4: Decouple `AuthService` from Direct `SpacetimeService` Mutation**
-- **Files**:
-  - [`syncspend/ios/SyncSpend/Services/AuthService.swift`](file:///Users/jordanscarrott/Documents/GitHub/personal/Tandem/syncspend/ios/SyncSpend/Services/AuthService.swift)
-  - [`syncspend/ios/SyncSpend/Services/SpacetimeService.swift`](file:///Users/jordanscarrott/Documents/GitHub/personal/Tandem/syncspend/ios/SyncSpend/Services/SpacetimeService.swift)
-- Removed direct property mutations of `SpacetimeService.shared` from `AuthService`.
-- `SpacetimeService` accesses tokens dynamically from `KeychainManager`.
+### iOS UI & Interactions
+- **`NewExpenseSheet.swift`**: Supports optional `expenseToEdit: ExpenseItem?`. Dynamically sets navigation title (`"Edit Expense"` vs `"New Expense"`), CTA button (`"Save Changes"` vs `"Save"`), and populates all form fields (title, amount, category, payment method, date, split mode).
+- **`TransactionRowView.swift`**: Added `onTap: (() -> Void)?` handler with interactive touch feedback and `.contentShape(Rectangle())` without interfering with swipe-to-delete.
+- **`TransactionGroupListView.swift`**: Added `onEdit: ((ExpenseItem) -> Void)?` passing row taps to the parent view.
+- **`MainDashboardView.swift`**: Added `@State private var selectedExpenseToEdit: ExpenseItem?` presented via `.sheet(item: $selectedExpenseToEdit)` with live feed refresh on save.
+- **`SearchFilterSheet.swift`**: Tapping any transaction in search results also opens the edit sheet directly.
 
 ---
 
-## 3. Validation Results
-- **Rust Server Compilation**: `cargo check --manifest-path syncspend/server/Cargo.toml` -> `Finished dev profile [unoptimized + debuginfo]` (0.42s)
-- **Live Security Isolation Suite**: `python3 syncspend/server/tests/verify_security_isolation.py` -> `ALL SECURITY & MULTI-USER ISOLATION TESTS PASSED SUCCESSFULLY!`
-- **iOS Simulator Build**: `xcodebuild -project syncspend/ios/SyncSpend.xcodeproj -scheme SyncSpend ...` -> `** BUILD SUCCEEDED **`
+## 3. Verification
+- **Rust Server Module**: Passed `cargo check` and successfully published to SpacetimeDB Maincloud (`ad-guitar-1941`).
+- **iOS App**: Verified clean compilation with `xcodebuild`.

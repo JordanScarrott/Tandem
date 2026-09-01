@@ -4,6 +4,7 @@ import SwiftUI
 
 @Observable
 public final class NewExpenseViewModel {
+    public var editingExpenseId: UInt64? = nil
     public var title: String = ""
     public var amountInput: String = ""
     public var selectedCategoryId: UInt64?
@@ -17,6 +18,10 @@ public final class NewExpenseViewModel {
     
     public init() {}
     
+    public var isEditing: Bool {
+        editingExpenseId != nil
+    }
+    
     public var parsedCents: Int64 {
         let clean = amountInput
             .trimmingCharacters(in: .whitespaces)
@@ -27,6 +32,17 @@ public final class NewExpenseViewModel {
     
     public var canSave: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty && parsedCents > 0 && selectedCategoryId != nil
+    }
+    
+    public func populate(with expense: ExpenseItem) {
+        self.editingExpenseId = expense.id
+        self.title = expense.note
+        let rands = Double(expense.amountCents) / 100.0
+        self.amountInput = String(format: "%.2f", rands)
+        self.selectedCategoryId = expense.categoryId
+        self.selectedPaymentMethod = expense.paymentMethod.isEmpty ? "Apple Pay" : expense.paymentMethod
+        self.spentDate = expense.spentDate
+        self.selectedSplitMode = expense.splitMode ?? "PERSONAL"
     }
     
     public func applySuggestion(title: String, amountString: String, categoryId: UInt64?) {
@@ -43,14 +59,27 @@ public final class NewExpenseViewModel {
         errorMessage = nil
         
         do {
-            try await service.logExpense(
-                amountCents: parsedCents,
-                currency: currencyCode,
-                categoryId: catId,
-                paymentMethod: selectedPaymentMethod,
-                note: title.trimmingCharacters(in: .whitespaces),
-                spentDate: spentDate
-            )
+            if let expId = editingExpenseId {
+                try await service.updateExpense(
+                    expenseId: expId,
+                    amountCents: parsedCents,
+                    currency: currencyCode,
+                    categoryId: catId,
+                    paymentMethod: selectedPaymentMethod,
+                    note: title.trimmingCharacters(in: .whitespaces),
+                    spentDate: spentDate,
+                    splitMode: selectedSplitMode
+                )
+            } else {
+                try await service.logExpense(
+                    amountCents: parsedCents,
+                    currency: currencyCode,
+                    categoryId: catId,
+                    paymentMethod: selectedPaymentMethod,
+                    note: title.trimmingCharacters(in: .whitespaces),
+                    spentDate: spentDate
+                )
+            }
             isSubmitting = false
             return true
         } catch {
@@ -61,6 +90,7 @@ public final class NewExpenseViewModel {
     }
     
     public func reset() {
+        editingExpenseId = nil
         title = ""
         amountInput = ""
         selectedPaymentMethod = "Apple Pay"
@@ -69,3 +99,4 @@ public final class NewExpenseViewModel {
         errorMessage = nil
     }
 }
+

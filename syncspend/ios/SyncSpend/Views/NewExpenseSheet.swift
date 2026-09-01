@@ -9,6 +9,7 @@ public struct NewExpenseSheet: View {
     public let currency: CurrencyItem
     public let accountId: String
     public let smartSuggestionsEnabled: Bool
+    public let expenseToEdit: ExpenseItem?
     public let onExpenseSaved: () -> Void
     
     @State private var showingDatePicker: Bool = false
@@ -19,12 +20,14 @@ public struct NewExpenseSheet: View {
         currency: CurrencyItem,
         accountId: String,
         smartSuggestionsEnabled: Bool,
+        expenseToEdit: ExpenseItem? = nil,
         onExpenseSaved: @escaping () -> Void
     ) {
         self.categories = categories
         self.currency = currency
         self.accountId = accountId
         self.smartSuggestionsEnabled = smartSuggestionsEnabled
+        self.expenseToEdit = expenseToEdit
         self.onExpenseSaved = onExpenseSaved
     }
     
@@ -246,7 +249,7 @@ public struct NewExpenseSheet: View {
                     .padding(.horizontal, 2)
                     
                     // Smart Suggestions
-                    if smartSuggestionsEnabled {
+                    if smartSuggestionsEnabled && !viewModel.isEditing {
                         SmartSuggestionsView(
                             currencySymbol: currency.symbol,
                             categories: categories,
@@ -267,7 +270,7 @@ public struct NewExpenseSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.appBackground)
-            .navigationTitle("New Expense")
+            .navigationTitle(viewModel.isEditing ? "Edit Expense" : "New Expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -295,7 +298,7 @@ public struct NewExpenseSheet: View {
                         if viewModel.isSubmitting {
                             ProgressView()
                         } else {
-                            Text("Save")
+                            Text(viewModel.isEditing ? "Save Changes" : "Save")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(viewModel.canSave ? Theme.accentBlue : Theme.mutedText)
                         }
@@ -314,16 +317,21 @@ public struct NewExpenseSheet: View {
                 }
             }
             .onAppear {
-                if viewModel.selectedCategoryId == nil {
-                    viewModel.selectedCategoryId = categories.first?.id
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    if viewModel.amountInput.isEmpty {
-                        isAmountFocused = true
+                if let expense = expenseToEdit {
+                    viewModel.populate(with: expense)
+                } else {
+                    if viewModel.selectedCategoryId == nil {
+                        viewModel.selectedCategoryId = categories.first?.id
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if viewModel.amountInput.isEmpty {
+                            isAmountFocused = true
+                        }
                     }
                 }
             }
         }
     }
+
 }
 

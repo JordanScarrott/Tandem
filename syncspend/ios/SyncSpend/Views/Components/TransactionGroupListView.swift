@@ -6,6 +6,7 @@ public struct TransactionGroupListView: View {
     public let currency: CurrencyItem
     public let accountName: String
     public let onDelete: (ExpenseItem) -> Void
+    public let onEdit: ((ExpenseItem) -> Void)?
     public let onLogExpense: (() -> Void)?
     
     public init(
@@ -14,6 +15,7 @@ public struct TransactionGroupListView: View {
         currency: CurrencyItem,
         accountName: String,
         onDelete: @escaping (ExpenseItem) -> Void,
+        onEdit: ((ExpenseItem) -> Void)? = nil,
         onLogExpense: (() -> Void)? = nil
     ) {
         self.groupedExpenses = groupedExpenses
@@ -21,6 +23,7 @@ public struct TransactionGroupListView: View {
         self.currency = currency
         self.accountName = accountName
         self.onDelete = onDelete
+        self.onEdit = onEdit
         self.onLogExpense = onLogExpense
     }
     
@@ -92,7 +95,8 @@ public struct TransactionGroupListView: View {
                                     expense: item,
                                     category: categoryFor(id: item.categoryId),
                                     currency: currency,
-                                    onDelete: { onDelete(item) }
+                                    onDelete: { onDelete(item) },
+                                    onTap: { onEdit?(item) }
                                 )
                                 
                                 if index < group.expenses.count - 1 {
@@ -114,4 +118,5 @@ public struct TransactionGroupListView: View {
         }
     }
 }
+
 
