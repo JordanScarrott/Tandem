@@ -47,6 +47,8 @@
             <string>com.tandem.SyncSpend.auth</string>
             <key>CFBundleURLSchemes</key>
             <array>
+                <string>com.tandem.syncspend</string>
+                <string>com.tandem.SyncSpend</string>
                 <string>syncspend</string>
             </array>
         </dict>

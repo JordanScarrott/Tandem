@@ -19,8 +19,8 @@ public final class AuthService: NSObject, ASWebAuthenticationPresentationContext
 
     private let authAuthority = "https://auth.spacetimedb.com/oidc"
     private let clientId = "client_034HBfvzsY4Xnxn1pwNaWA"
-    private let redirectURI = "syncspend://auth/callback"
-    private let callbackScheme = "syncspend"
+    private let redirectURI = "com.tandem.syncspend://auth/callback"
+    private let callbackScheme = "com.tandem.syncspend"
 
     public override init() {
         super.init()
