@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Architecture Review: Tandem / SyncSpend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "neutral",
+        securityLevel: "loose",
+        fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto"
+      });
+    </script>
+    <style>
+      .seam-line { stroke-dasharray: 4 4; }
+      .leak-line { stroke: #dc2626; stroke-width: 2px; }
+      .deep-box { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans antialiased min-h-screen">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      
+      <!-- Header -->
+      <header class="border-b border-slate-200 pb-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <span class="text-xs font-semibold tracking-wider text-emerald-600 uppercase">Architecture Review</span>
+            <h1 class="text-3xl font-bold tracking-tight text-slate-900 mt-1">Tandem / SyncSpend Codebase</h1>
+            <p class="text-sm text-slate-500 mt-1">Audit of module depth, seam discipline, locality, and test leverage.</p>
+          </div>
+          <div class="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg p-3 shadow-sm space-y-1">
+            <div class="font-medium text-slate-700">Legend</div>
+            <div class="flex items-center gap-4 flex-wrap">
+              <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-slate-800 inline-block"></span> Deep Module</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-slate-200 inline-block border border-slate-400"></span> Shallow Module</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 border-t border-dashed border-slate-600 inline-block"></span> Seam</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-3 h-0.5 bg-red-600 inline-block"></span> Leakage</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Candidates Section -->
+      <section id="candidates" class="space-y-12">
+        <div class="space-y-1">
+          <h2 class="text-xl font-bold tracking-tight text-slate-900">Deepening Opportunities</h2>
+          <p class="text-sm text-slate-600">Proposals to collapse shallow modules, eliminate leakage, and maximize test leverage.</p>
+        </div>
+
+        <!-- Candidate 1 -->
+        <article id="candidate-1" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Strong</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">in-process</span>
+                <span class="text-xs text-slate-400">Candidate 1</span>
+              </div>
+              <h3 class="text-xl font-bold text-slate-900 mt-2">Deepen the Spending Telemetry Engine</h3>
+            </div>
+          </div>
+
+          <div class="text-xs font-mono bg-slate-50 text-slate-600 p-2.5 rounded border border-slate-200">
+            syncspend/ios/SyncSpend/ViewModels/DashboardViewModel.swift · syncspend/ios/SyncSpend/Models/PaydayCycle.swift
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-red-700">Before: Shallow View Model God-Object</div>
+              <pre class="mermaid">
+flowchart TD
+  V[MainDashboardView] --> VM[DashboardViewModel]
+  VM -.leaks math.-> PC[PaydayCycle]
+  VM --> E1[envelopeStatuses]
+  VM --> E2[cyclePacePoints]
+  VM --> E3[chartDataWithCategories]
+  VM --> E4[cyclePaceStatusText]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class VM,PC leak;
+              </pre>
+              <p class="text-xs text-slate-600">Interface is wide: View Model exposes 15+ computed properties doing inline calendar date binning, cumulative pace math, and category grouping.</p>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-emerald-800">After: Deep Telemetry Engine Behind Clean Seam</div>
+              <pre class="mermaid">
+flowchart TD
+  V[MainDashboardView] --> VM[DashboardViewModel]
+  VM -->|query| TE[SpendingTelemetryEngine]
+  subgraph DEEP [Deep Module: Telemetry Engine]
+    TE --- P[Pace Projections]
+    TE --- C[Category Envelopes]
+    TE --- B[Time Binning]
+  end
+  classDef deepBox fill:#0f172a,stroke:#0f172a,color:#fff;
+  class TE,DEEP deepBox;
+              </pre>
+              <p class="text-xs text-slate-600">Interface is small: one input snapshot, one complete telemetry report. Complex calendar math and pace projections sit deep behind the seam.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-slate-100">
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</h4>
+              <p class="text-sm text-slate-700 mt-1">DashboardViewModel is shallow with over 400 lines of calendar date math, cumulative pace logic, and category binning leaking into UI state management.</p>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</h4>
+              <p class="text-sm text-slate-700 mt-1">Consolidate pace curves, payday cycle caps, and time-bucketed aggregations into a deep, pure-function SpendingTelemetryEngine.</p>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Wins</h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">locality: pace math in one module</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">leverage: one engine, N views</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">tests hit one interface</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">interface shrinks by 12 properties</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">passes deletion test cleanly</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">zero async/UI dependencies</div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 2 -->
+        <article id="candidate-2" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Strong</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">in-process</span>
+                <span class="text-xs text-slate-400">Candidate 2</span>
+              </div>
+              <h3 class="text-xl font-bold text-slate-900 mt-2">Deepen Transaction Query & Date Collation Engine</h3>
+            </div>
+          </div>
+
+          <div class="text-xs font-mono bg-slate-50 text-slate-600 p-2.5 rounded border border-slate-200">
+            syncspend/ios/SyncSpend/ViewModels/DashboardViewModel.swift · syncspend/ios/SyncSpend/Views/Components/TransactionGroupListView.swift
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-red-700">Before: Fragmented Filtering & Sorting Across UI</div>
+              <pre class="mermaid">
+flowchart TD
+  Q[Search Query] --> VM[DashboardViewModel]
+  P[FilterPeriod] --> VM
+  C[Category Filter] --> VM
+  VM -.predicate pass 1.-> F1[baseFilteredExpenses]
+  VM -.predicate pass 2.-> F2[filteredExpenses]
+  VM -.date collation.-> G[groupedExpenses]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class VM,F1,F2 leak;
+              </pre>
+              <p class="text-xs text-slate-600">Multi-pass filtering (account, query, category, payment method, period) and date grouping ("Today", "Yesterday", formatting) leak into view model.</p>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-emerald-800">After: Deep Transaction Query Module</div>
+              <pre class="mermaid">
+flowchart TD
+  REQ[TransactionQuery] --> TQ[ExpenseQueryEngine]
+  subgraph DEEP [Deep Module: Query Engine]
+    TQ --- P[Predicate Evaluator]
+    TQ --- T[Text Tokenizer]
+    TQ --- G[Date Collator]
+  end
+  TQ --> RES[GroupedTransactionFeed]
+  classDef deepBox fill:#0f172a,stroke:#0f172a,color:#fff;
+  class TQ,DEEP deepBox;
+              </pre>
+              <p class="text-xs text-slate-600">Caller supplies query descriptor struct; engine evaluates predicates, normalizes text search, and groups by date behind one interface.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-slate-100">
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</h4>
+              <p class="text-sm text-slate-700 mt-1">Filter predicates, date range slicing, text searching, and group header collation are fragmented across multiple passes in UI state.</p>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</h4>
+              <p class="text-sm text-slate-700 mt-1">Collapse filtering and feed grouping into an ExpenseQueryEngine with a single query descriptor interface.</p>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Wins</h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">locality: filtering logic in one module</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">leverage: feed, search, export reuse</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">tests verify complex edge cases</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">interface shrinks to executeQuery</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">passes deletion test cleanly</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">instant memory execution</div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 3 -->
+        <article id="candidate-3" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Worth exploring</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">ports & adapters</span>
+                <span class="text-xs text-slate-400">Candidate 3</span>
+              </div>
+              <h3 class="text-xl font-bold text-slate-900 mt-2">Deepen SpacetimeDB Client Adapter & Row Decoding</h3>
+            </div>
+          </div>
+
+          <div class="text-xs font-mono bg-slate-50 text-slate-600 p-2.5 rounded border border-slate-200">
+            syncspend/ios/SyncSpend/Services/SpacetimeService.swift
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-red-700">Before: Shallow Adapter Leaking Untyped Tuples</div>
+              <pre class="mermaid">
+flowchart LR
+  API[SpacetimeDB API] --> SS[SpacetimeService]
+  SS -.row[0] as? UInt64.-> M1[CategoryItem]
+  SS -.row[5] as? [Any].-> M2[Option Enum Decoding]
+  SS -.raw SQL strings.-> DB[my_categories view]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class SS leak;
+              </pre>
+              <p class="text-xs text-slate-600">Adapter interface is shallow: blends HTTP dispatch, OIDC credentials, raw SQL strings, and manual array index unwrapping.</p>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-emerald-800">After: Deep Row Decoder Behind Typed Repository Seam</div>
+              <pre class="mermaid">
+flowchart LR
+  CALL[Caller / ViewModel] --> REPO[SyncSpendRepository]
+  REPO --> ADAPT[SpacetimeClientAdapter]
+  ADAPT --> DEC[SpacetimeRowDecoder]
+  classDef deepBox fill:#0f172a,stroke:#0f172a,color:#fff;
+  class DEC,REPO deepBox;
+              </pre>
+              <p class="text-xs text-slate-600">Typed repository interface backed by two adapters (Live SpacetimeDB in prod, In-Memory Fake in tests). Deep row decoder isolates protocol variants.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-slate-100">
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</h4>
+              <p class="text-sm text-slate-700 mt-1">SpacetimeService mixes HTTP transport, authorization headers, raw string SQL queries, and fragile positional array indexing.</p>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</h4>
+              <p class="text-sm text-slate-700 mt-1">Place a repository seam with two adapters (Live SpacetimeDB, In-Memory Fake) and hide tuple decoding behind a SpacetimeRowDecoder module.</p>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Wins</h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">two adapters justify seam</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">locality: protocol parsing isolated</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">offline/test fake substitution</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">type-safe enum decoding</div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 4 -->
+        <article id="candidate-4" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Worth exploring</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">in-process</span>
+                <span class="text-xs text-slate-400">Candidate 4</span>
+              </div>
+              <h3 class="text-xl font-bold text-slate-900 mt-2">Deepen Expense Mutation & Invariant Enforcement</h3>
+            </div>
+          </div>
+
+          <div class="text-xs font-mono bg-slate-50 text-slate-600 p-2.5 rounded border border-slate-200">
+            syncspend/ios/SyncSpend/ViewModels/NewExpenseViewModel.swift · syncspend/ios/SyncSpend/Services/SpacetimeService.swift · syncspend/server/src/lib.rs
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-red-700">Before: Mutation Branching Scattered</div>
+              <pre class="mermaid">
+flowchart TD
+  UI[NewExpenseSheet] --> NVM[NewExpenseViewModel]
+  NVM -.branching log vs update.-> S1[service.logExpense]
+  NVM -.branching couple space.-> S2[service.logCoupleExpense]
+  NVM -.fallback note rule.-> S3[service.updateExpense]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class NVM,S1,S2,S3 leak;
+              </pre>
+              <p class="text-xs text-slate-600">Invariants (defaulting empty note to category name, cents rounding, personal vs couple split mode) duplicated across UI and callers.</p>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
+              <div class="text-xs font-semibold uppercase tracking-wider text-emerald-800">After: Deep Expense Mutation Model</div>
+              <pre class="mermaid">
+flowchart TD
+  UI[NewExpenseSheet] --> NVM[NewExpenseViewModel]
+  NVM --> DRAFT[ExpenseDraft]
+  DRAFT -->|save| EM[ExpenseMutationEngine]
+  subgraph DEEP [Deep Module: Mutation Engine]
+    EM --- V[Invariant Validator]
+    EM --- F[Fallback Formatter]
+    EM --- D[Seam Dispatcher]
+  end
+  classDef deepBox fill:#0f172a,stroke:#0f172a,color:#fff;
+  class EM,DEEP deepBox;
+              </pre>
+              <p class="text-xs text-slate-600">ExpenseDraft encapsulates invariants; ExpenseMutationEngine executes save/update/restore across the personal and couple seam.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-slate-100">
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Problem</h4>
+              <p class="text-sm text-slate-700 mt-1">Expense validation, fallback note assignment, cents conversion, and personal vs. couple routing leak across UI view models.</p>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Solution</h4>
+              <p class="text-sm text-slate-700 mt-1">Encapsulate invariants in an ExpenseDraft and route mutations through a unified ExpenseMutationEngine.</p>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Wins</h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">locality: invariants in domain model</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">leverage: unified edit/create flow</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">deletion test passes cleanly</div>
+              <div class="text-xs bg-slate-50 border border-slate-200 rounded p-2 text-slate-700 font-medium">couple space seam preserved</div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Top Recommendation Section -->
+      <section id="top-recommendation" class="rounded-xl border-2 border-slate-900 bg-white p-6 shadow-md space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="inline-flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Top Recommendation</span>
+          </div>
+          <a href="#candidate-1" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">Jump to Card &rarr;</a>
+        </div>
+        
+        <div>
+          <h3 class="text-2xl font-bold text-slate-900">Candidate 1: Deepen the Spending Telemetry Engine</h3>
+          <p class="text-sm text-slate-700 mt-2">
+            <strong>Why tackle first:</strong> Over 50% of recent commits focus on payday cycles, pace curves, and budget telemetry. Currently, <code>DashboardViewModel</code> is a 772-line class where complex financial domain calculations directly leak into UI state. Extracting a deep <code>SpendingTelemetryEngine</code> collapses the largest shallow module in the codebase, eliminates friction for ongoing chart features, and gives 100% pure in-memory test coverage over all financial pacing math without mocking UI or database adapters.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>

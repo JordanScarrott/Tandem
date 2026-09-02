@@ -30,6 +30,19 @@ public struct PaydayCycle: Equatable, Hashable {
         return max(0, diff.day ?? 0)
     }
     
+    public var totalDays: Int {
+        let diff = Calendar.current.dateComponents([.day], from: startDate, to: endDate)
+        return max(1, diff.day ?? 30)
+    }
+    
+    public var currentDayIndex: Int {
+        let now = Date()
+        if now < startDate { return 1 }
+        if now >= endDate { return totalDays }
+        let diff = Calendar.current.dateComponents([.day], from: startDate, to: now)
+        return max(1, min(totalDays, (diff.day ?? 0) + 1))
+    }
+    
     public var cycleProgressPercentage: Double {
         let total = endDate.timeIntervalSince(startDate)
         guard total > 0 else { return 1.0 }
@@ -37,8 +50,34 @@ public struct PaydayCycle: Equatable, Hashable {
         return max(0.0, min(1.0, elapsed / total))
     }
     
-    public static func current(billingCycleStartDay: UInt8 = 1, currentDate: Date = Date()) -> PaydayCycle {
+    public func idealCumulativeCents(totalBudgetCents: Int64, atDayIndex dayIndex: Int) -> Int64 {
+        guard totalDays > 0, totalBudgetCents > 0 else { return 0 }
+        let fraction = min(1.0, max(0.0, Double(dayIndex) / Double(totalDays)))
+        return Int64(Double(totalBudgetCents) * fraction)
+    }
+    
+    public func dailyIdealAllowanceCents(totalBudgetCents: Int64) -> Int64 {
+        guard totalDays > 0, totalBudgetCents > 0 else { return 0 }
+        return totalBudgetCents / Int64(totalDays)
+    }
+    
+    public var cycleDates: [Date] {
+        var dates: [Date] = []
         let calendar = Calendar.current
+        var curr = startDate
+        while curr < endDate {
+            dates.append(curr)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: curr) else { break }
+            curr = next
+        }
+        return dates
+    }
+    
+    public static func current(
+        billingCycleStartDay: UInt8 = 1,
+        currentDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> PaydayCycle {
         let dayAnchor = max(1, min(28, Int(billingCycleStartDay)))
         
         let currentYear = calendar.component(.year, from: currentDate)

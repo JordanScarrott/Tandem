@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tandem • Budget & Category Envelope Telemetry Prototype</title>
+  <style>
+    :root {
+      --bg: #0F1115;
+      --card-bg: #181B22;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary-text: #F3F4F6;
+      --muted-text: #9CA3AF;
+      --subtle-gray: #2D3139;
+      --accent-blue: #3B82F6;
+      --accent-green: #10B981;
+      --accent-red: #EF4444;
+      --accent-purple: #8B5CF6;
+      --accent-orange: #F59E0B;
+      --accent-pink: #EC4899;
+      --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--primary-text);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 140px;
+    }
+
+    .app-frame {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Top App Bar */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+    }
+
+    .account-pill {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--card-border);
+    }
+
+    .account-pill span {
+      color: var(--accent-blue);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      position: relative;
+    }
+
+    .cycle-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted-text);
+    }
+
+    .days-left-pill {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary-text);
+    }
+
+    .hero-metric-val {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      margin-top: 4px;
+    }
+
+    /* Stacked Bar Chart */
+    .chart-container {
+      height: 160px;
+      position: relative;
+      margin-top: 20px;
+      display: flex;
+      align-items: flex-end;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .chart-guidelines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .guideline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .guideline-line {
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .guideline-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--muted-text);
+      width: 40px;
+      text-align: right;
+    }
+
+    .daily-allowance-rule {
+      position: absolute;
+      left: 0;
+      right: 48px;
+      border-top: 1.5px dashed var(--accent-blue);
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .allowance-tag {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--accent-blue);
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transform: translateY(-50%);
+    }
+
+    .bars-row {
+      display: flex;
+      width: calc(100% - 48px);
+      height: 100%;
+      align-items: flex-end;
+      justify-content: space-between;
+      z-index: 2;
+    }
+
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .bar-stack {
+      width: 22px;
+      display: flex;
+      flex-direction: column-reverse;
+      border-radius: 8px 8px 3px 3px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.04);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .bar-col:hover .bar-stack {
+      transform: scale(1.08);
+    }
+
+    .bar-segment {
+      width: 100%;
+      transition: opacity 0.3s ease, height 0.3s ease;
+    }
+
+    .bar-day-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted-text);
+    }
+
+    .bar-tooltip {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      background: #000;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(4px) scale(0.9);
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.15);
+      z-index: 10;
+    }
+
+    .bar-col:hover .bar-tooltip {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Horizontal Category Strip */
+    .envelope-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .envelope-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .envelope-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .envelope-pill.active {
+      border-color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.12);
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+    }
+
+    .envelope-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    /* Cumulative Area Chart */
+    .pace-chart-svg {
+      width: 100%;
+      height: 140px;
+      overflow: visible;
+      margin-top: 14px;
+    }
+
+    /* Variant C Mode Selector */
+    .segmented-control {
+      display: flex;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .segment-btn {
+      flex: 1;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--muted-text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .segment-btn.active {
+      background: var(--card-bg);
+      color: var(--primary-text);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    /* Floating Prototype Switcher */
+    .floating-switcher {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 24, 33, 0.92);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 40px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      z-index: 100;
+    }
+
+    .switcher-btn {
+      background: rgba(255, 255, 255, 0.12);
+      border: none;
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .switcher-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .switcher-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 220px;
+      text-align: center;
+    }
+
+    .switcher-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .switcher-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-orange);
+    }
+
+    .switcher-desc {
+      font-size: 10px;
+      color: var(--muted-text);
+      margin-top: 1px;
+    }
+
+    .variant-view {
+      display: none;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .variant-view.active {
+      display: flex;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mock Transaction Feed */
+    .tx-section {
+      margin-top: 6px;
+    }
+    .tx-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted-text);
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+    .tx-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      margin-bottom: 8px;
+    }
+    .tx-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tx-cat-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .tx-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .tx-time {
+      font-size: 11px;
+      color: var(--muted-text);
+    }
+    .tx-amount {
+      font-size: 15px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-frame">
+    <!-- Top Bar -->
+    <div class="app-header">
+      <div class="account-pill">
+        <span>●</span> Personal Account ▾
+      </div>
+      <div style="font-size: 12px; color: var(--muted-text); font-weight: 600;">
+        ⚡ SpacetimeDB Live
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- VARIANT A: Stacked Category Bar Telemetry -->
+    <!-- ========================================================================= -->
+    <div id="view-variant-a" class="variant-view active">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="cycle-badge">
+            <span>📅</span> Payday Cycle • 25 Aug – 24 Sep
+          </div>
+          <div class="days-left-pill">14d left</div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 14px;">
+          <div>
+            <div style="font-size: 12px; color: var(--muted-text); font-weight: 500;">Spent This Week</div>
+            <div class="hero-metric-val" id="varA-total-spend">R 4 820</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--muted-text);">Daily Allowance Cap</div>
+            <div style="font-size: 15px; font-weight: 700; color: var(--accent-blue);">R 400 / day</div>
+          </div>
+        </div>
+
+        <!-- Custom Stacked Bar Chart -->
+        <div class="chart-container">
+          <div class="chart-guidelines">
+            <div class="guideline"><div class="guideline-line"></div><div class="guideline-label">R 1 200</div></div>
+            <div class="guideline"><div class="guideline-line"></div><div class="guideline-label">R 800</div></div>
+            <div class="guideline"><div class="guideline-line"></div><div class="guideline-label">R 400</div></div>
+            <div class="guideline"><div class="guideline-line"></div><div class="guideline-label">R 0</div></div>
+          </div>
+
+          <!-- Allowance reference line at R400 (33.3% of R1200 height) -->
+          <div class="daily-allowance-rule" style="bottom: calc(24px + (136px * 0.333));">
+            <div class="allowance-tag">CAP R400</div>
+          </div>
+
+          <div class="bars-row">
+            <!-- Sun -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Sun: R 320<br><span style="color:#F59E0B">Groceries R220</span><br><span style="color:#8B5CF6">Transport R100</span></div>
+              <div class="bar-stack" style="height: 36px;">
+                <div class="bar-segment" data-cat="groceries" style="height: 24px; background: var(--accent-orange);"></div>
+                <div class="bar-segment" data-cat="transport" style="height: 12px; background: var(--accent-purple);"></div>
+              </div>
+              <div class="bar-day-label">Sun</div>
+            </div>
+
+            <!-- Mon -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Mon: R 740<br><span style="color:#EF4444">Dining Out R480</span><br><span style="color:#EC4899">Entertainment R260</span></div>
+              <div class="bar-stack" style="height: 84px;">
+                <div class="bar-segment" data-cat="dining" style="height: 54px; background: var(--accent-red);"></div>
+                <div class="bar-segment" data-cat="entertainment" style="height: 30px; background: var(--accent-pink);"></div>
+              </div>
+              <div class="bar-day-label">Mon</div>
+            </div>
+
+            <!-- Tue -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Tue: R 180<br><span style="color:#10B981">Utilities R180</span></div>
+              <div class="bar-stack" style="height: 20px;">
+                <div class="bar-segment" data-cat="utilities" style="height: 20px; background: var(--accent-green);"></div>
+              </div>
+              <div class="bar-day-label">Tue</div>
+            </div>
+
+            <!-- Wed -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Wed: R 980<br><span style="color:#F59E0B">Groceries R620</span><br><span style="color:#8B5CF6">Transport R360</span></div>
+              <div class="bar-stack" style="height: 110px;">
+                <div class="bar-segment" data-cat="groceries" style="height: 70px; background: var(--accent-orange);"></div>
+                <div class="bar-segment" data-cat="transport" style="height: 40px; background: var(--accent-purple);"></div>
+              </div>
+              <div class="bar-day-label">Wed</div>
+            </div>
+
+            <!-- Thu -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Thu: R 420<br><span style="color:#EF4444">Dining Out R420</span></div>
+              <div class="bar-stack" style="height: 48px;">
+                <div class="bar-segment" data-cat="dining" style="height: 48px; background: var(--accent-red);"></div>
+              </div>
+              <div class="bar-day-label">Thu</div>
+            </div>
+
+            <!-- Fri -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Fri: R 1 200<br><span style="color:#EC4899">Entertainment R750</span><br><span style="color:#EF4444">Dining Out R450</span></div>
+              <div class="bar-stack" style="height: 136px;">
+                <div class="bar-segment" data-cat="entertainment" style="height: 85px; background: var(--accent-pink);"></div>
+                <div class="bar-segment" data-cat="dining" style="height: 51px; background: var(--accent-red);"></div>
+              </div>
+              <div class="bar-day-label" style="color: var(--accent-blue); font-weight: 800;">Fri</div>
+            </div>
+
+            <!-- Sat -->
+            <div class="bar-col">
+              <div class="bar-tooltip">Sat: R 980<br><span style="color:#F59E0B">Groceries R580</span><br><span style="color:#8B5CF6">Transport R400</span></div>
+              <div class="bar-stack" style="height: 110px;">
+                <div class="bar-segment" data-cat="groceries" style="height: 65px; background: var(--accent-orange);"></div>
+                <div class="bar-segment" data-cat="transport" style="height: 45px; background: var(--accent-purple);"></div>
+              </div>
+              <div class="bar-day-label">Sat</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spotlight Category Envelope Strip -->
+        <div style="margin-top: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted-text); letter-spacing: 0.5px;">SPOTLIGHT CATEGORY</div>
+            <button id="reset-spotlight-btn" style="background: none; border: none; color: var(--accent-blue); font-size: 11px; font-weight: 600; cursor: pointer; display: none;">Reset Spotlight</button>
+          </div>
+
+          <div class="envelope-scroll">
+            <div class="envelope-pill" data-cat="groceries" onclick="toggleSpotlight('groceries')">
+              <div class="envelope-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-orange);">🛒</div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700;">Groceries</div>
+                <div style="font-size: 11px; color: var(--muted-text);">R 1 420 <span style="font-size: 10px;">/ R 3 500</span></div>
+              </div>
+            </div>
+
+            <div class="envelope-pill" data-cat="dining" onclick="toggleSpotlight('dining')">
+              <div class="envelope-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--accent-red);">🍔</div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700;">Dining Out</div>
+                <div style="font-size: 11px; color: var(--accent-red); font-weight: 700;">R 1 350 <span style="font-size: 10px; color:var(--muted-text);">/ R 1 200 ⚠️</span></div>
+              </div>
+            </div>
+
+            <div class="envelope-pill" data-cat="transport" onclick="toggleSpotlight('transport')">
+              <div class="envelope-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--accent-purple);">🚗</div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700;">Transport</div>
+                <div style="font-size: 11px; color: var(--muted-text);">R 860 <span style="font-size: 10px;">/ R 1 800</span></div>
+              </div>
+            </div>
+
+            <div class="envelope-pill" data-cat="entertainment" onclick="toggleSpotlight('entertainment')">
+              <div class="envelope-icon" style="background: rgba(236, 72, 153, 0.2); color: var(--accent-pink);">🎬</div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700;">Entertainment</div>
+                <div style="font-size: 11px; color: var(--muted-text);">R 1 010 <span style="font-size: 10px;">/ R 2 000</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- VARIANT B: Cumulative Cycle Burn-Down & Pace Trajectory -->
+    <!-- ========================================================================= -->
+    <div id="view-variant-b" class="variant-view">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="cycle-badge">
+            <span>📅</span> 25 Aug – 24 Sep
+          </div>
+          <div style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;">
+            ● On Track • R 520 under pace
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 14px;">
+          <div>
+            <div style="font-size: 11px; color: var(--muted-text); font-weight: 700; letter-spacing: 0.5px;">FREE TO SPEND</div>
+            <div class="hero-metric-val" style="color: var(--accent-green);">R 7 180</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--muted-text);">Spent So Far</div>
+            <div style="font-size: 16px; font-weight: 700;">R 4 820 <span style="font-size: 12px; color: var(--muted-text);">/ R 12 000</span></div>
+          </div>
+        </div>
+
+        <!-- Continuous Area Trajectory Chart -->
+        <svg class="pace-chart-svg" viewBox="0 0 360 140">
+          <defs>
+            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.02"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Budget ceiling guideline -->
+          <line x1="0" y1="20" x2="360" y2="20" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4 4" stroke-width="1"/>
+          <text x="4" y="15" fill="#9CA3AF" font-size="9" font-weight="600">Budget Cap R12 000</text>
+
+          <!-- Ideal linear pace trajectory line (D0 to D30) -->
+          <line x1="0" y1="130" x2="360" y2="20" stroke="#9CA3AF" stroke-opacity="0.4" stroke-dasharray="4 4" stroke-width="1.5"/>
+
+          <!-- Actual Cumulative Spend Area (D0 to D16 today) -->
+          <path d="M 0 130 
+                   C 30 128, 60 120, 90 105 
+                   C 120 95, 150 78, 180 62 
+                   L 180 130 Z" 
+                fill="url(#areaGradient)" />
+
+          <!-- Actual Cumulative Spend Stroke Line -->
+          <path d="M 0 130 
+                   C 30 128, 60 120, 90 105 
+                   C 120 95, 150 78, 180 62" 
+                fill="none" stroke="#3B82F6" stroke-width="3" stroke-linecap="round"/>
+
+          <!-- Today Marker Dot -->
+          <circle cx="180" cy="62" r="5" fill="#3B82F6" stroke="#fff" stroke-width="2"/>
+
+          <!-- Axis Labels -->
+          <text x="0" y="138" fill="#9CA3AF" font-size="9" font-weight="500">Day 1 (25 Aug)</text>
+          <text x="165" y="138" fill="#3B82F6" font-size="9" font-weight="700">Today (Day 16)</text>
+          <text x="290" y="138" fill="#9CA3AF" font-size="9" font-weight="500">Payday (24 Sep)</text>
+        </svg>
+
+        <!-- Category Burn Pacing with Monarch-Style Calendar Pace Notches -->
+        <div style="margin-top: 18px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--muted-text); letter-spacing: 0.5px; margin-bottom: 10px;">ENVELOPE BURN PACING</div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Groceries -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 14px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 6px;">
+                <span>🛒 Groceries</span>
+                <span style="color: var(--muted-text);">R 1 420 / R 3 500 (40%)</span>
+              </div>
+              <div style="height: 6px; background: var(--subtle-gray); border-radius: 4px; position: relative;">
+                <div style="width: 40%; height: 100%; background: var(--accent-orange); border-radius: 4px;"></div>
+                <!-- 53% Pace Notch -->
+                <div style="position: absolute; left: 53%; top: -3px; width: 2px; height: 12px; background: #fff; border-radius: 1px;" title="53% of cycle passed"></div>
+              </div>
+            </div>
+
+            <!-- Dining Out (Over pace) -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 14px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 6px;">
+                <span>🍔 Dining Out</span>
+                <span style="color: var(--accent-red);">R 1 350 / R 1 200 (112% ⚠️)</span>
+              </div>
+              <div style="height: 6px; background: var(--subtle-gray); border-radius: 4px; position: relative;">
+                <div style="width: 100%; height: 100%; background: var(--accent-red); border-radius: 4px;"></div>
+                <div style="position: absolute; left: 53%; top: -3px; width: 2px; height: 12px; background: #fff; border-radius: 1px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- VARIANT C: Integrated Hybrid Hero (All-in-One Command Center) -->
+    <!-- ========================================================================= -->
+    <div id="view-variant-c" class="variant-view">
+      <div class="card">
+        <!-- Top Row: Cycle Ring + Free to Spend + Segmented Mode Switcher -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <!-- Circular Gauge -->
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
+              <circle cx="20" cy="20" r="16" fill="none" stroke="#3B82F6" stroke-width="4" stroke-dasharray="100" stroke-dashoffset="47" stroke-linecap="round" transform="rotate(-90 20 20)"/>
+              <text x="20" y="24" text-anchor="middle" fill="#fff" font-size="10" font-weight="800">14d</text>
+            </svg>
+            <div>
+              <div style="font-size: 11px; color: var(--muted-text); font-weight: 600;">Payday in 14 days</div>
+              <div style="font-size: 18px; font-weight: 800; color: #fff;">R 7 180 <span style="font-size: 11px; font-weight: 500; color: var(--muted-text);">left</span></div>
+            </div>
+          </div>
+
+          <div class="segmented-control">
+            <button class="segment-btn active" onclick="setVarCMode('bars', this)">Bars</button>
+            <button class="segment-btn" onclick="setVarCMode('pace', this)">Pace</button>
+          </div>
+        </div>
+
+        <!-- Dynamic Chart Area -->
+        <div id="varC-chart-bars" style="margin-top: 14px;">
+          <div class="bars-row" style="width: 100%; height: 100px;">
+            <div class="bar-col"><div class="bar-stack" style="height: 30px;"><div class="bar-segment" style="height: 20px; background: var(--accent-orange);"></div><div class="bar-segment" style="height: 10px; background: var(--accent-purple);"></div></div><div class="bar-day-label">S</div></div>
+            <div class="bar-col"><div class="bar-stack" style="height: 65px;"><div class="bar-segment" style="height: 40px; background: var(--accent-red);"></div><div class="bar-segment" style="height: 25px; background: var(--accent-pink);"></div></div><div class="bar-day-label">M</div></div>
+            <div class="bar-col"><div class="bar-stack" style="height: 18px;"><div class="bar-segment" style="height: 18px; background: var(--accent-green);"></div></div><div class="bar-day-label">T</div></div>
+            <div class="bar-col"><div class="bar-stack" style="height: 80px;"><div class="bar-segment" style="height: 50px; background: var(--accent-orange);"></div><div class="bar-segment" style="height: 30px; background: var(--accent-purple);"></div></div><div class="bar-day-label">W</div></div>
+            <div class="bar-col"><div class="bar-stack" style="height: 40px;"><div class="bar-segment" style="height: 40px; background: var(--accent-red);"></div></div><div class="bar-day-label">T</div></div>
+            <div class="bar-col"><div class="bar-stack" style="height: 95px;"><div class="bar-segment" style="height: 60px; background: var(--accent-pink);"></div><div class="bar-segment" style="height: 35px; background: var(--accent-red);"></div></div><div class="bar-day-label" style="color: var(--accent-blue);">F</div></div>
+            <div class="bar-col"><div class="bar-stack" style="height: 75px;"><div class="bar-segment" style="height: 45px; background: var(--accent-orange);"></div><div class="bar-segment" style="height: 30px; background: var(--accent-purple);"></div></div><div class="bar-day-label">S</div></div>
+          </div>
+        </div>
+
+        <div id="varC-chart-pace" style="display: none; margin-top: 14px;">
+          <svg class="pace-chart-svg" style="height: 100px;" viewBox="0 0 360 100">
+            <line x1="0" y1="10" x2="360" y2="10" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4 4"/>
+            <line x1="0" y1="90" x2="360" y2="10" stroke="#9CA3AF" stroke-opacity="0.3" stroke-dasharray="4 4"/>
+            <path d="M 0 90 C 40 88, 80 80, 120 70 C 140 65, 160 50, 180 40 L 180 90 Z" fill="url(#areaGradient)"/>
+            <path d="M 0 90 C 40 88, 80 80, 120 70 C 140 65, 160 50, 180 40" fill="none" stroke="#3B82F6" stroke-width="2.5"/>
+            <circle cx="180" cy="40" r="4" fill="#3B82F6" stroke="#fff" stroke-width="1.5"/>
+          </svg>
+        </div>
+
+        <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 16px 0 12px;"></div>
+
+        <!-- Embedded Category Envelopes Strip in Card Footer -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-size: 10px; font-weight: 700; color: var(--muted-text); letter-spacing: 0.5px;">ENVELOPE ALLOCATIONS</div>
+          <div style="font-size: 11px; font-weight: 600; color: var(--accent-blue); cursor: pointer;">+ New</div>
+        </div>
+
+        <div class="envelope-scroll">
+          <div class="envelope-pill" style="padding: 8px 12px; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 110px;">
+            <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-orange);"></span>
+              <span style="font-size: 11px; font-weight: 700;">Groceries</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 800;">R 1 420</div>
+            <div style="width: 100%; height: 3px; background: var(--subtle-gray); border-radius: 2px;">
+              <div style="width: 40%; height: 100%; background: var(--accent-orange); border-radius: 2px;"></div>
+            </div>
+          </div>
+
+          <div class="envelope-pill" style="padding: 8px 12px; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 110px; border-color: rgba(239,68,68,0.3);">
+            <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-red);"></span>
+              <span style="font-size: 11px; font-weight: 700;">Dining Out</span>
+              <span style="font-size: 9px;">⚠️</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 800; color: var(--accent-red);">R 1 350</div>
+            <div style="width: 100%; height: 3px; background: var(--subtle-gray); border-radius: 2px;">
+              <div style="width: 100%; height: 100%; background: var(--accent-red); border-radius: 2px;"></div>
+            </div>
+          </div>
+
+          <div class="envelope-pill" style="padding: 8px 12px; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 110px;">
+            <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent-purple);"></span>
+              <span style="font-size: 11px; font-weight: 700;">Transport</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 800;">R 860</div>
+            <div style="width: 100%; height: 3px; background: var(--subtle-gray); border-radius: 2px;">
+              <div style="width: 48%; height: 100%; background: var(--accent-purple); border-radius: 2px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feed Section -->
+    <div class="tx-section">
+      <div class="tx-header">RECENT TRANSACTIONS</div>
+      <div class="tx-row">
+        <div class="tx-info">
+          <div class="tx-cat-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-orange);">🛒</div>
+          <div>
+            <div class="tx-title">Woolworths Food</div>
+            <div class="tx-time">Today, 2:45 PM • Card</div>
+          </div>
+        </div>
+        <div class="tx-amount">-R 420.50</div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-info">
+          <div class="tx-cat-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--accent-purple);">🚗</div>
+          <div>
+            <div class="tx-title">Uber Ride</div>
+            <div class="tx-time">Yesterday, 8:15 PM • Apple Pay</div>
+          </div>
+        </div>
+        <div class="tx-amount">-R 115.00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Prototype Switcher -->
+  <div class="floating-switcher">
+    <button class="switcher-btn" onclick="cycleVariant(-1)">‹</button>
+    <div class="switcher-info">
+      <div class="switcher-title">
+        <span class="switcher-dot"></span>
+        <span id="switcher-label">Variant A: Stacked Bars</span>
+      </div>
+      <div class="switcher-desc" id="switcher-desc">Segmented category telemetry & daily allowance rule</div>
+    </div>
+    <button class="switcher-btn" onclick="cycleVariant(1)">›</button>
+  </div>
+
+  <script>
+    const variants = [
+      {
+        id: 'view-variant-a',
+        label: 'Variant A: Stacked Bars',
+        desc: 'Category color segments & daily allowance rule'
+      },
+      {
+        id: 'view-variant-b',
+        label: 'Variant B: Cumulative Pace',
+        desc: 'Continuous pace curve vs ideal linear trajectory'
+      },
+      {
+        id: 'view-variant-c',
+        label: 'Variant C: Integrated Hero',
+        desc: 'All-in-one command center with embedded envelopes'
+      }
+    ];
+
+    let currentIdx = 0;
+    let activeSpotlight = null;
+
+    function renderVariant() {
+      variants.forEach((v, idx) => {
+        const el = document.getElementById(v.id);
+        if (idx === currentIdx) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
+      document.getElementById('switcher-label').textContent = variants[currentIdx].label;
+      document.getElementById('switcher-desc').textContent = variants[currentIdx].desc;
+    }
+
+    function cycleVariant(delta) {
+      currentIdx = (currentIdx + delta + variants.length) % variants.length;
+      renderVariant();
+    }
+
+    // Keyboard navigation (← and →)
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') cycleVariant(-1);
+      if (e.key === 'ArrowRight') cycleVariant(1);
+    });
+
+    // Spotlight logic for Variant A
+    function toggleSpotlight(cat) {
+      const resetBtn = document.getElementById('reset-spotlight-btn');
+      if (activeSpotlight === cat) {
+        activeSpotlight = null;
+        resetBtn.style.display = 'none';
+      } else {
+        activeSpotlight = cat;
+        resetBtn.style.display = 'block';
+      }
+
+      // Update pills
+      document.querySelectorAll('#view-variant-a .envelope-pill').forEach(pill => {
+        if (pill.dataset.cat === activeSpotlight) {
+          pill.classList.add('active');
+        } else {
+          pill.classList.remove('active');
+        }
+      });
+
+      // Update bar segments opacity
+      document.querySelectorAll('#view-variant-a .bar-segment').forEach(seg => {
+        if (!activeSpotlight || seg.dataset.cat === activeSpotlight) {
+          seg.style.opacity = '1';
+        } else {
+          seg.style.opacity = '0.15';
+        }
+      });
+    }
+
+    document.getElementById('reset-spotlight-btn')?.addEventListener('click', () => {
+      toggleSpotlight(null);
+    });
+
+    // Variant C Mode Toggle
+    function setVarCMode(mode, btn) {
+      document.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (mode === 'bars') {
+        document.getElementById('varC-chart-bars').style.display = 'block';
+        document.getElementById('varC-chart-pace').style.display = 'none';
+      } else {
+        document.getElementById('varC-chart-bars').style.display = 'none';
+        document.getElementById('varC-chart-pace').style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -11,6 +11,7 @@ public struct MainDashboardView: View {
     @State private var showingAddCategory: Bool = false
     @State private var selectedCategoryToEdit: CategoryItem? = nil
     @State private var selectedExpenseToEdit: ExpenseItem? = nil
+    @State private var prototypeVariant: BudgetPrototypeVariant = .variantA
     
     public init() {}
     
@@ -161,23 +162,10 @@ public struct MainDashboardView: View {
                             .padding(.horizontal, 16)
                         }
                         
-                        // 1. Period Spending Big Card with Bar Chart
-                        WeeklySpendingCard(
-                            title: viewModel.periodTitle,
-                            totalCents: viewModel.periodTotalCents,
-                            currency: viewModel.currency,
-                            chartData: viewModel.chartData
-                        )
-                        .padding(.horizontal, 16)
-                        
-                        // 2. Category Envelopes Section (Payday Cycle Tracking)
-                        CategoryEnvelopesDashboardSection(
-                            cycle: viewModel.currentPaydayCycle,
-                            envelopeStatuses: viewModel.envelopeStatuses,
-                            totalSpentCents: viewModel.cycleTotalSpentCents,
-                            totalBudgetCents: viewModel.cycleTotalBudgetCents,
-                            currency: viewModel.currency,
-                            selectedCategoryId: $viewModel.selectedFilterCategoryId,
+                        // Prototype Budget & Envelope Telemetry Section (Variant A / B / C)
+                        BudgetTelemetryPrototypeView(
+                            viewModel: viewModel,
+                            currentVariant: $prototypeVariant,
                             onAddEnvelope: {
                                 showingAddCategory = true
                             },
@@ -204,7 +192,7 @@ public struct MainDashboardView: View {
                             }
                         )
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 90) // Padding for FAB
+                        .padding(.bottom, 120) // Padding for Floating Switcher & FAB
                     }
                 }
                 .background(Theme.appBackground)
@@ -225,25 +213,32 @@ public struct MainDashboardView: View {
                     .zIndex(10)
                 }
                 
-                // Floating Action Button (FAB)
-                Button {
-                    Haptics.impact(.medium)
-                    showingNewExpense = true
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(Theme.buttonDark)
-                            .frame(width: 58, height: 58)
-                            .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
-                        
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(Theme.buttonForeground)
+                // Bottom Floating Prototype Switcher & FAB
+                HStack(alignment: .bottom) {
+                    PrototypeFloatingSwitcher(currentVariant: $prototypeVariant)
+                    
+                    Spacer()
+                    
+                    // Floating Action Button (FAB)
+                    Button {
+                        Haptics.impact(.medium)
+                        showingNewExpense = true
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Theme.buttonDark)
+                                .frame(width: 54, height: 54)
+                                .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
+                            
+                            Image(systemName: "plus")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(Theme.buttonForeground)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .padding(.trailing, 20)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
                 .zIndex(20)
             }
             .navigationBarHidden(true)

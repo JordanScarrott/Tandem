@@ -23,8 +23,40 @@ targets:
     platform: iOS
     sources:
       - path: SyncSpend
+    dependencies:
+      - target: SyncSpendWidgetExtension
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: SyncSpend/Info.plist
         PRODUCT_NAME: SyncSpend
+
+  SyncSpendWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SyncSpendWidget
+      - path: SyncSpend/Engine
+      - path: SyncSpend/Models
+      - path: SyncSpend/Theme
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tandem.SyncSpend.SyncSpendWidgetExtension
+        INFOPLIST_FILE: SyncSpendWidget/Info.plist
+        PRODUCT_NAME: SyncSpendWidgetExtension
+        GENERATE_INFOPLIST_FILE: false
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  SyncSpendTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SyncSpendTests
+    dependencies:
+      - target: SyncSpend
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tandem.SyncSpendTests
+        PRODUCT_NAME: SyncSpendTests
+
