@@ -11,6 +11,11 @@ public struct WidgetWeeklyTelemetry: Codable, Equatable {
     public let cyclePaceDeltaCents: Int64
     public let freeToSpendCents: Int64
     public let statusText: String
+    public let todayAvailableCents: Int64
+    public let todayBaseAllowanceCents: Int64
+    public let todaySpentCents: Int64
+    public let healthState: BudgetHealthState
+    public let daysRemainingInCycle: Int
     public let lastUpdated: Date
     
     public init(
@@ -22,6 +27,11 @@ public struct WidgetWeeklyTelemetry: Codable, Equatable {
         cyclePaceDeltaCents: Int64,
         freeToSpendCents: Int64,
         statusText: String,
+        todayAvailableCents: Int64 = 0,
+        todayBaseAllowanceCents: Int64 = 0,
+        todaySpentCents: Int64 = 0,
+        healthState: BudgetHealthState = .healthy,
+        daysRemainingInCycle: Int = 1,
         lastUpdated: Date = Date()
     ) {
         self.weeklyTotalCents = weeklyTotalCents
@@ -32,11 +42,24 @@ public struct WidgetWeeklyTelemetry: Codable, Equatable {
         self.cyclePaceDeltaCents = cyclePaceDeltaCents
         self.freeToSpendCents = freeToSpendCents
         self.statusText = statusText
+        self.todayAvailableCents = todayAvailableCents
+        self.todayBaseAllowanceCents = todayBaseAllowanceCents
+        self.todaySpentCents = todaySpentCents
+        self.healthState = healthState
+        self.daysRemainingInCycle = daysRemainingInCycle
         self.lastUpdated = lastUpdated
     }
     
     public var formattedWeeklyTotal: String {
         formatCurrency(cents: weeklyTotalCents)
+    }
+    
+    public var formattedTodayAvailable: String {
+        formatCurrency(cents: todayAvailableCents)
+    }
+    
+    public var formattedTodayBaseAllowance: String {
+        formatCurrency(cents: todayBaseAllowanceCents)
     }
     
     public var formattedPaceDelta: String {
@@ -81,6 +104,11 @@ public struct WidgetWeeklyTelemetry: Codable, Equatable {
             cyclePaceDeltaCents: 15000,
             freeToSpendCents: 280000,
             statusText: "On track • R 150 under pace",
+            todayAvailableCents: 45000,
+            todayBaseAllowanceCents: 50000,
+            todaySpentCents: 5000,
+            healthState: .healthy,
+            daysRemainingInCycle: 22,
             lastUpdated: Date()
         )
     }
@@ -142,6 +170,11 @@ public final class SharedTelemetryStore {
             cyclePaceDeltaCents: snapshot.pace.cyclePaceDeltaCents,
             freeToSpendCents: snapshot.pace.freeToSpendCents,
             statusText: snapshot.pace.statusText,
+            todayAvailableCents: snapshot.pace.todayAvailableCents,
+            todayBaseAllowanceCents: snapshot.pace.todayBaseAllowanceCents,
+            todaySpentCents: snapshot.pace.todaySpentCents,
+            healthState: snapshot.pace.healthState,
+            daysRemainingInCycle: snapshot.pace.daysRemaining,
             lastUpdated: asOf
         )
         

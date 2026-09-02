@@ -105,6 +105,10 @@ public struct PaceTelemetry: Equatable {
     public let cyclePaceDeltaCents: Int64
     public let isCyclePacingAhead: Bool
     public let statusText: String
+    public let todaySpentCents: Int64
+    public let todayBaseAllowanceCents: Int64
+    public let todayAvailableCents: Int64
+    public let healthState: BudgetHealthState
     
     public init(
         pacePoints: [CyclePacePoint],
@@ -118,7 +122,11 @@ public struct PaceTelemetry: Equatable {
         freeToSpendCents: Int64,
         cyclePaceDeltaCents: Int64,
         isCyclePacingAhead: Bool,
-        statusText: String
+        statusText: String,
+        todaySpentCents: Int64 = 0,
+        todayBaseAllowanceCents: Int64 = 0,
+        todayAvailableCents: Int64 = 0,
+        healthState: BudgetHealthState = .healthy
     ) {
         self.pacePoints = pacePoints
         self.totalDays = totalDays
@@ -132,6 +140,10 @@ public struct PaceTelemetry: Equatable {
         self.cyclePaceDeltaCents = cyclePaceDeltaCents
         self.isCyclePacingAhead = isCyclePacingAhead
         self.statusText = statusText
+        self.todaySpentCents = todaySpentCents
+        self.todayBaseAllowanceCents = todayBaseAllowanceCents
+        self.todayAvailableCents = todayAvailableCents
+        self.healthState = healthState
     }
 }
 

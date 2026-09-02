@@ -23,24 +23,42 @@ public struct PaydayCycle: Equatable, Hashable {
         return "\(formatter.string(from: startDate)) – \(formatter.string(from: endDisplay))"
     }
     
-    public var daysRemaining: Int {
-        let now = Date()
-        if now >= endDate { return 0 }
-        let diff = Calendar.current.dateComponents([.day], from: now, to: endDate)
-        return max(0, diff.day ?? 0)
+    public func daysRemaining(asOf: Date = Date(), calendar: Calendar = .current) -> Int {
+        let startOfAsOf = calendar.startOfDay(for: asOf)
+        let startOfEnd = calendar.startOfDay(for: endDate)
+        if startOfAsOf >= startOfEnd { return 1 }
+        let diff = calendar.dateComponents([.day], from: startOfAsOf, to: startOfEnd)
+        return max(1, diff.day ?? 1)
     }
     
-    public var totalDays: Int {
-        let diff = Calendar.current.dateComponents([.day], from: startDate, to: endDate)
+    public var daysRemaining: Int {
+        daysRemaining(asOf: Date(), calendar: .current)
+    }
+    
+    public func totalDays(calendar: Calendar = .current) -> Int {
+        let startOfStart = calendar.startOfDay(for: startDate)
+        let startOfEnd = calendar.startOfDay(for: endDate)
+        let diff = calendar.dateComponents([.day], from: startOfStart, to: startOfEnd)
         return max(1, diff.day ?? 30)
     }
     
+    public var totalDays: Int {
+        totalDays(calendar: .current)
+    }
+    
+    public func currentDayIndex(asOf: Date = Date(), calendar: Calendar = .current) -> Int {
+        let startOfAsOf = calendar.startOfDay(for: asOf)
+        let startOfStart = calendar.startOfDay(for: startDate)
+        let startOfEnd = calendar.startOfDay(for: endDate)
+        let total = totalDays(calendar: calendar)
+        if startOfAsOf < startOfStart { return 1 }
+        if startOfAsOf >= startOfEnd { return total }
+        let diff = calendar.dateComponents([.day], from: startOfStart, to: startOfAsOf)
+        return max(1, min(total, (diff.day ?? 0) + 1))
+    }
+    
     public var currentDayIndex: Int {
-        let now = Date()
-        if now < startDate { return 1 }
-        if now >= endDate { return totalDays }
-        let diff = Calendar.current.dateComponents([.day], from: startDate, to: now)
-        return max(1, min(totalDays, (diff.day ?? 0) + 1))
+        currentDayIndex(asOf: Date(), calendar: .current)
     }
     
     public var cycleProgressPercentage: Double {
@@ -50,27 +68,33 @@ public struct PaydayCycle: Equatable, Hashable {
         return max(0.0, min(1.0, elapsed / total))
     }
     
-    public func idealCumulativeCents(totalBudgetCents: Int64, atDayIndex dayIndex: Int) -> Int64 {
-        guard totalDays > 0, totalBudgetCents > 0 else { return 0 }
-        let fraction = min(1.0, max(0.0, Double(dayIndex) / Double(totalDays)))
+    public func idealCumulativeCents(totalBudgetCents: Int64, atDayIndex dayIndex: Int, calendar: Calendar = .current) -> Int64 {
+        let total = totalDays(calendar: calendar)
+        guard total > 0, totalBudgetCents > 0 else { return 0 }
+        let fraction = min(1.0, max(0.0, Double(dayIndex) / Double(total)))
         return Int64(Double(totalBudgetCents) * fraction)
     }
     
-    public func dailyIdealAllowanceCents(totalBudgetCents: Int64) -> Int64 {
-        guard totalDays > 0, totalBudgetCents > 0 else { return 0 }
-        return totalBudgetCents / Int64(totalDays)
+    public func dailyIdealAllowanceCents(totalBudgetCents: Int64, calendar: Calendar = .current) -> Int64 {
+        let total = totalDays(calendar: calendar)
+        guard total > 0, totalBudgetCents > 0 else { return 0 }
+        return totalBudgetCents / Int64(total)
     }
     
-    public var cycleDates: [Date] {
+    public func cycleDates(calendar: Calendar = .current) -> [Date] {
         var dates: [Date] = []
-        let calendar = Calendar.current
-        var curr = startDate
-        while curr < endDate {
+        var curr = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: endDate)
+        while curr < end {
             dates.append(curr)
             guard let next = calendar.date(byAdding: .day, value: 1, to: curr) else { break }
             curr = next
         }
         return dates
+    }
+    
+    public var cycleDates: [Date] {
+        cycleDates(calendar: .current)
     }
     
     public static func current(
@@ -136,11 +160,22 @@ public struct PaydayCycle: Equatable, Hashable {
     }
 }
 
+public enum BudgetHealthState: String, Codable, Equatable, Hashable {
+    case healthy = "HEALTHY"
+    case caution = "CAUTION"
+    case overToday = "OVER_TODAY"
+    case overCycle = "OVER_CYCLE"
+}
+
 public struct CategoryEnvelopeStatus: Identifiable, Equatable, Hashable {
     public var id: UInt64 { category.id }
     public let category: CategoryItem
     public let spentCents: Int64
     public let budgetCents: Int64?
+    public let todaySpentCents: Int64
+    public let todayBaseAllowanceCents: Int64
+    public let todayAvailableCents: Int64
+    public let healthState: BudgetHealthState
     
     public var isOverspent: Bool {
         guard let budget = budgetCents, budget > 0 else { return false }
@@ -167,9 +202,20 @@ public struct CategoryEnvelopeStatus: Identifiable, Equatable, Hashable {
         return Int((Double(spentCents) / Double(budget)) * 100.0)
     }
     
-    public init(category: CategoryItem, spentCents: Int64) {
+    public init(
+        category: CategoryItem,
+        spentCents: Int64,
+        todaySpentCents: Int64 = 0,
+        todayBaseAllowanceCents: Int64 = 0,
+        todayAvailableCents: Int64 = 0,
+        healthState: BudgetHealthState = .healthy
+    ) {
         self.category = category
         self.spentCents = spentCents
         self.budgetCents = category.monthlyBudgetCents
+        self.todaySpentCents = todaySpentCents
+        self.todayBaseAllowanceCents = todayBaseAllowanceCents
+        self.todayAvailableCents = todayAvailableCents
+        self.healthState = healthState
     }
 }

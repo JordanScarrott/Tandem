@@ -122,5 +122,12 @@ final class SharedTelemetryStoreTests: XCTestCase {
         
         XCTAssertEqual(monSpend?.amountCents, 30000)
         XCTAssertEqual(wedSpend?.amountCents, 45000)
+        
+        // Assert Dynamic Daily Allowance Fields
+        XCTAssertEqual(loaded.todaySpentCents, 45000)
+        XCTAssertGreaterThan(loaded.todayBaseAllowanceCents, 0)
+        XCTAssertEqual(loaded.healthState, .healthy)
+        XCTAssertFalse(loaded.formattedTodayAvailable.isEmpty)
+        XCTAssertFalse(loaded.formattedTodayBaseAllowance.isEmpty)
     }
 }

@@ -60,3 +60,50 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tandem.SyncSpendTests
         PRODUCT_NAME: SyncSpendTests
 
+schemes:
+  SyncSpend:
+    build:
+      targets:
+        SyncSpend: all
+        SyncSpendWidgetExtension: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - SyncSpendTests
+
+  SyncSpendWidgetExtension:
+    build:
+      targets:
+        SyncSpendWidgetExtension: all
+    run:
+      config: Debug
+      environmentVariables:
+        - variable: _XCWidgetKind
+          value: com.tandem.syncspend.daily-allowance
+          isEnabled: true
+        - variable: _XCWidgetDefaultView
+          value: timeline
+          isEnabled: true
+        - variable: _XCWidgetFamily
+          value: systemSmall
+          isEnabled: true
+
+  WeeklySpendWidget:
+    build:
+      targets:
+        SyncSpendWidgetExtension: all
+    run:
+      config: Debug
+      environmentVariables:
+        - variable: _XCWidgetKind
+          value: com.tandem.syncspend.weekly-spend
+          isEnabled: true
+        - variable: _XCWidgetDefaultView
+          value: timeline
+          isEnabled: true
+        - variable: _XCWidgetFamily
+          value: systemSmall
+          isEnabled: true
+

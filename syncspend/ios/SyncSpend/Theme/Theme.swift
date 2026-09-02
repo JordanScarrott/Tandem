@@ -15,6 +15,8 @@ public enum Theme {
     public static let buttonForeground = Color(uiColor: .systemBackground)
     public static let accentBlue = Color.blue
     public static let accentGreen = Color.green
+    public static let accentYellow = Color.yellow
+    public static let accentOrange = Color.orange
     public static let accentRed = Color.red
     
     // Spacing & Radii

@@ -1,5 +1,7 @@
 use spacetimedb::{table, reducer, view, Identity, Timestamp, ReducerContext, ViewContext, Table};
 
+pub mod telemetry;
+
 #[table(name = user_profile)]
 pub struct UserProfile {
     #[primary_key]

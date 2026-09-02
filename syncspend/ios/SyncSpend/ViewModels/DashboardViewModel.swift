@@ -116,12 +116,32 @@ public final class DashboardViewModel {
         telemetry.pace.idealPaceSpendToDateCents
     }
     
+    public var todayAvailableCents: Int64 {
+        telemetry.pace.todayAvailableCents
+    }
+    
+    public var todayBaseAllowanceCents: Int64 {
+        telemetry.pace.todayBaseAllowanceCents
+    }
+    
+    public var todaySpentCents: Int64 {
+        telemetry.pace.todaySpentCents
+    }
+    
+    public var todayHealthState: BudgetHealthState {
+        telemetry.pace.healthState
+    }
+    
     public var isCyclePacingAhead: Bool {
         telemetry.pace.isCyclePacingAhead
     }
     
     public var cyclePaceDeltaCents: Int64 {
         telemetry.pace.cyclePaceDeltaCents
+    }
+    
+    public var daysRemainingInCycle: Int {
+        telemetry.pace.daysRemaining
     }
     
     public var cyclePaceStatusText: String {

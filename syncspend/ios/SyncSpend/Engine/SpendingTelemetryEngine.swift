@@ -29,7 +29,9 @@ public enum SpendingTelemetryEngine {
         let envelopes = calculateEnvelopeTelemetry(
             expenses: expenses,
             categories: categories,
-            paydayCycle: paydayCycle
+            paydayCycle: paydayCycle,
+            asOf: asOf,
+            calendar: calendar
         )
         
         let distribution = calculateDistributionTelemetry(
@@ -62,14 +64,45 @@ public enum SpendingTelemetryEngine {
         let cycleExpenses = expenses.filter { paydayCycle.contains(date: $0.spentDate) }
         let totalSpentCents = cycleExpenses.reduce(0) { $0 + $1.amountCents }
         
-        let totalDays = paydayCycle.totalDays
-        let currentDayIndex = paydayCycle.currentDayIndex
-        let daysRemaining = paydayCycle.daysRemaining
-        let dailyAllowance = paydayCycle.dailyIdealAllowanceCents(totalBudgetCents: totalBudgetCents)
+        let totalDays = paydayCycle.totalDays(calendar: calendar)
+        let currentDayIndex = paydayCycle.currentDayIndex(asOf: asOf, calendar: calendar)
+        let daysRemaining = max(1, paydayCycle.daysRemaining(asOf: asOf, calendar: calendar))
+        let dailyAllowance = paydayCycle.dailyIdealAllowanceCents(totalBudgetCents: totalBudgetCents, calendar: calendar)
         let freeToSpend = max(0, totalBudgetCents - totalSpentCents)
-        let idealPaceSpend = paydayCycle.idealCumulativeCents(totalBudgetCents: totalBudgetCents, atDayIndex: currentDayIndex)
+        let idealPaceSpend = paydayCycle.idealCumulativeCents(totalBudgetCents: totalBudgetCents, atDayIndex: currentDayIndex, calendar: calendar)
         let isPacingAhead = totalSpentCents > idealPaceSpend
         let paceDelta = abs(totalSpentCents - idealPaceSpend)
+        
+        // Pennies dynamic daily allowance calculation
+        let todayExpenses = cycleExpenses.filter { calendar.isDate($0.spentDate, inSameDayAs: asOf) }
+        let todaySpentCents: Int64 = todayExpenses.reduce(0) { $0 + $1.amountCents }
+        let priorSpentCents: Int64 = max(0, totalSpentCents - todaySpentCents)
+        
+        let todayBaseAllowanceCents: Int64
+        let todayAvailableCents: Int64
+        let healthState: BudgetHealthState
+        
+        if totalBudgetCents <= 0 {
+            todayBaseAllowanceCents = 0
+            todayAvailableCents = -todaySpentCents
+            healthState = .healthy
+        } else if totalSpentCents >= totalBudgetCents {
+            todayBaseAllowanceCents = 0
+            todayAvailableCents = -todaySpentCents
+            healthState = .overCycle
+        } else {
+            let unspentPrior = max(0, totalBudgetCents - priorSpentCents)
+            todayBaseAllowanceCents = unspentPrior / Int64(daysRemaining)
+            todayAvailableCents = todayBaseAllowanceCents - todaySpentCents
+            
+            if todayAvailableCents < 0 {
+                healthState = .overToday
+            } else if todaySpentCents > (todayBaseAllowanceCents * 8) / 10 {
+                healthState = .caution
+            } else {
+                healthState = .healthy
+            }
+        }
         
         let statusText: String
         if totalBudgetCents <= 0 {
@@ -77,6 +110,8 @@ public enum SpendingTelemetryEngine {
         } else if totalSpentCents > totalBudgetCents {
             let over = totalSpentCents - totalBudgetCents
             statusText = "Over budget by \(currency.format(cents: over))"
+        } else if healthState == .overToday {
+            statusText = "Over today's allowance • Cycle healthy"
         } else if isPacingAhead {
             statusText = "Pacing over by \(currency.format(cents: paceDelta))"
         } else {
@@ -89,7 +124,7 @@ public enum SpendingTelemetryEngine {
         formatter.calendar = calendar
         
         var points: [CyclePacePoint] = []
-        let dates = paydayCycle.cycleDates
+        let dates = paydayCycle.cycleDates(calendar: calendar)
         
         for (index, date) in dates.enumerated() {
             let dayNum = index + 1
@@ -103,7 +138,7 @@ public enum SpendingTelemetryEngine {
                 runningSpend += daySpend
             }
             
-            let idealSpend = paydayCycle.idealCumulativeCents(totalBudgetCents: totalBudgetCents, atDayIndex: dayNum)
+            let idealSpend = paydayCycle.idealCumulativeCents(totalBudgetCents: totalBudgetCents, atDayIndex: dayNum, calendar: calendar)
             
             points.append(CyclePacePoint(
                 dayNumber: dayNum,
@@ -128,7 +163,11 @@ public enum SpendingTelemetryEngine {
             freeToSpendCents: freeToSpend,
             cyclePaceDeltaCents: paceDelta,
             isCyclePacingAhead: isPacingAhead,
-            statusText: statusText
+            statusText: statusText,
+            todaySpentCents: todaySpentCents,
+            todayBaseAllowanceCents: todayBaseAllowanceCents,
+            todayAvailableCents: todayAvailableCents,
+            healthState: healthState
         )
     }
     
@@ -137,18 +176,60 @@ public enum SpendingTelemetryEngine {
     public static func calculateEnvelopeTelemetry(
         expenses: [ExpenseItem],
         categories: [CategoryItem],
-        paydayCycle: PaydayCycle
+        paydayCycle: PaydayCycle,
+        asOf: Date = Date(),
+        calendar: Calendar = .current
     ) -> EnvelopeTelemetry {
         let cycleExpenses = expenses.filter { paydayCycle.contains(date: $0.spentDate) }
         let totalBudget: Int64 = categories.compactMap(\.monthlyBudgetCents).reduce(0, +)
         let totalSpent: Int64 = cycleExpenses.reduce(0) { $0 + $1.amountCents }
         let freeToSpend: Int64 = max(0, totalBudget - totalSpent)
+        let daysRemaining = max(1, paydayCycle.daysRemaining)
         
         let statuses: [CategoryEnvelopeStatus] = categories.map { cat in
-            let spent = cycleExpenses
-                .filter { $0.categoryId == cat.id }
+            let catExpenses = cycleExpenses.filter { $0.categoryId == cat.id }
+            let spent = catExpenses.reduce(0) { $0 + $1.amountCents }
+            let budget = cat.monthlyBudgetCents ?? 0
+            
+            let todaySpent: Int64 = catExpenses
+                .filter { calendar.isDate($0.spentDate, inSameDayAs: asOf) }
                 .reduce(0) { $0 + $1.amountCents }
-            return CategoryEnvelopeStatus(category: cat, spentCents: spent)
+            let priorSpent: Int64 = max(0, spent - todaySpent)
+            
+            let baseAllowance: Int64
+            let availableToday: Int64
+            let healthState: BudgetHealthState
+            
+            if budget <= 0 {
+                baseAllowance = 0
+                availableToday = -todaySpent
+                healthState = .healthy
+            } else if spent >= budget {
+                baseAllowance = 0
+                availableToday = -todaySpent
+                healthState = .overCycle
+            } else {
+                let unspentPrior = max(0, budget - priorSpent)
+                baseAllowance = unspentPrior / Int64(daysRemaining)
+                availableToday = baseAllowance - todaySpent
+                
+                if availableToday < 0 {
+                    healthState = .overToday
+                } else if todaySpent > (baseAllowance * 8) / 10 {
+                    healthState = .caution
+                } else {
+                    healthState = .healthy
+                }
+            }
+            
+            return CategoryEnvelopeStatus(
+                category: cat,
+                spentCents: spent,
+                todaySpentCents: todaySpent,
+                todayBaseAllowanceCents: baseAllowance,
+                todayAvailableCents: availableToday,
+                healthState: healthState
+            )
         }
         
         let overspentCount = statuses.filter(\.isOverspent).count

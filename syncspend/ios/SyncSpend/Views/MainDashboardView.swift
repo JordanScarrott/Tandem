@@ -11,7 +11,9 @@ public struct MainDashboardView: View {
     @State private var showingAddCategory: Bool = false
     @State private var selectedCategoryToEdit: CategoryItem? = nil
     @State private var selectedExpenseToEdit: ExpenseItem? = nil
+    @State private var focusedCategoryId: UInt64? = nil
     @State private var prototypeVariant: BudgetPrototypeVariant = .variantA
+    @State private var showPrototypeVariants: Bool = false
     
     public init() {}
     
@@ -66,6 +68,7 @@ public struct MainDashboardView: View {
                                         Button {
                                             Haptics.selection()
                                             viewModel.selectedFilterCategoryId = nil
+                                            focusedCategoryId = nil
                                         } label: {
                                             if viewModel.selectedFilterCategoryId == nil {
                                                 Label("All", systemImage: "checkmark")
@@ -78,6 +81,7 @@ public struct MainDashboardView: View {
                                             Button {
                                                 Haptics.selection()
                                                 viewModel.selectedFilterCategoryId = cat.id
+                                                focusedCategoryId = cat.id
                                             } label: {
                                                 if viewModel.selectedFilterCategoryId == cat.id {
                                                     Label(cat.name, systemImage: "checkmark")
@@ -150,6 +154,7 @@ public struct MainDashboardView: View {
                                     Haptics.selection()
                                     withAnimation {
                                         viewModel.clearAllFilters()
+                                        focusedCategoryId = nil
                                     }
                                 }
                                 .font(.system(size: 13, weight: .semibold))
@@ -162,18 +167,38 @@ public struct MainDashboardView: View {
                             .padding(.horizontal, 16)
                         }
                         
-                        // Prototype Budget & Envelope Telemetry Section (Variant A / B / C)
-                        BudgetTelemetryPrototypeView(
-                            viewModel: viewModel,
-                            currentVariant: $prototypeVariant,
-                            onAddEnvelope: {
-                                showingAddCategory = true
-                            },
-                            onEditEnvelope: { cat in
-                                selectedCategoryToEdit = cat
-                            }
-                        )
-                        .padding(.horizontal, 16)
+                        // Primary Daily Budget & Simplified Telemetry Hero
+                        if showPrototypeVariants {
+                            BudgetTelemetryPrototypeView(
+                                viewModel: viewModel,
+                                currentVariant: $prototypeVariant,
+                                onAddEnvelope: {
+                                    showingAddCategory = true
+                                },
+                                onEditEnvelope: { cat in
+                                    selectedCategoryToEdit = cat
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                        } else {
+                            DailyBudgetHeroView(
+                                viewModel: viewModel,
+                                focusedCategoryId: Binding(
+                                    get: { focusedCategoryId },
+                                    set: { newCat in
+                                        focusedCategoryId = newCat
+                                        viewModel.selectedFilterCategoryId = newCat
+                                    }
+                                ),
+                                onAddEnvelope: {
+                                    showingAddCategory = true
+                                },
+                                onEditEnvelope: { cat in
+                                    selectedCategoryToEdit = cat
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                        }
                         
                         // 3. Grouped Transaction List
                         TransactionGroupListView(
@@ -213,9 +238,11 @@ public struct MainDashboardView: View {
                     .zIndex(10)
                 }
                 
-                // Bottom Floating Prototype Switcher & FAB
+                // Bottom Floating Controls & FAB
                 HStack(alignment: .bottom) {
-                    PrototypeFloatingSwitcher(currentVariant: $prototypeVariant)
+                    if showPrototypeVariants {
+                        PrototypeFloatingSwitcher(currentVariant: $prototypeVariant)
+                    }
                     
                     Spacer()
                     

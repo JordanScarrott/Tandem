@@ -65,4 +65,8 @@ extension Color {
 
         self.init(.sRGB, red: r, green: g, blue: b, opacity: a)
     }
+    
+    public static func fromHex(_ hex: String, default defaultColor: Color = .blue) -> Color {
+        Color(hex: hex) ?? defaultColor
+    }
 }
