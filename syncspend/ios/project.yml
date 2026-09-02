@@ -30,6 +30,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: SyncSpend/Info.plist
         PRODUCT_NAME: SyncSpend
+        CODE_SIGN_ENTITLEMENTS: SyncSpend/SyncSpend.entitlements
 
   SyncSpendWidgetExtension:
     type: app-extension
@@ -47,6 +48,7 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: SyncSpendWidget/SyncSpendWidgetExtension.entitlements
 
   SyncSpendTests:
     type: bundle.unit-test
@@ -59,6 +61,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tandem.SyncSpendTests
         PRODUCT_NAME: SyncSpendTests
+        CODE_SIGN_ENTITLEMENTS: SyncSpend/SyncSpend.entitlements
 
 schemes:
   SyncSpend:

@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct MainDashboardView: View {
+    @Binding var requestedRoute: AppRoute?
     @State private var viewModel = DashboardViewModel()
     
     // Modal Sheets
@@ -15,7 +16,9 @@ public struct MainDashboardView: View {
     @State private var prototypeVariant: BudgetPrototypeVariant = .variantA
     @State private var showPrototypeVariants: Bool = false
     
-    public init() {}
+    public init(requestedRoute: Binding<AppRoute?> = .constant(nil)) {
+        self._requestedRoute = requestedRoute
+    }
     
     public var body: some View {
         NavigationStack {
@@ -349,6 +352,35 @@ public struct MainDashboardView: View {
             }
             .task {
                 await viewModel.refreshAll()
+            }
+            .onAppear {
+                if requestedRoute == .newExpense {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        showingNewExpense = true
+                        requestedRoute = nil
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SyncSpend_OpenNewExpenseSheet"))) { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    showingNewExpense = true
+                }
+            }
+            .onChange(of: requestedRoute) { _, newRoute in
+                if newRoute == .newExpense {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        showingNewExpense = true
+                        requestedRoute = nil
+                    }
+                }
+            }
+            .onOpenURL { url in
+                let host = url.host ?? url.path.replacingOccurrences(of: "/", with: "")
+                if host == "log-expense" || host == "new-expense" || host == "quick-log" {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        showingNewExpense = true
+                    }
+                }
             }
         }
     }

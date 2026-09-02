@@ -2,12 +2,29 @@ import Foundation
 import Observation
 
 @Observable
-public final class SpacetimeService {
+public final class SpacetimeService: NSObject, SpacetimeWebSocketDelegate {
     public static let shared = SpacetimeService()
 
     // Default to deployed Maincloud or local SpacetimeDB dev server
-    public var hostURL: String = "https://maincloud.spacetimedb.com"
-    public var databaseName: String = "ad-guitar-1941"
+    public var hostURL: String = "https://maincloud.spacetimedb.com" {
+        didSet {
+            wsClient.hostURL = hostURL
+        }
+    }
+    public var databaseName: String = "ad-guitar-1941" {
+        didSet {
+            wsClient.databaseName = databaseName
+        }
+    }
+
+    public let wsClient: SpacetimeWebSocketClient
+    public var liveConnectionState: WebSocketConnectionState = .disconnected
+
+    // Event hooks for reactive ViewModel listeners
+    public var onLiveExpenseInsert: ((ExpenseItem) -> Void)?
+    public var onLiveExpenseDelete: ((UInt64) -> Void)?
+    public var onLiveCategoryUpdate: (([CategoryItem]) -> Void)?
+    public var onLiveInitialHydration: (([CategoryItem], [ExpenseItem]) -> Void)?
 
     public var authToken: String? {
         get { KeychainManager.getAuthToken() }
@@ -27,7 +44,74 @@ public final class SpacetimeService {
         }
     }
 
-    private init() {}
+    override private init() {
+        self.wsClient = SpacetimeWebSocketClient(hostURL: "https://maincloud.spacetimedb.com", databaseName: "ad-guitar-1941")
+        super.init()
+        self.wsClient.delegate = self
+    }
+
+    // MARK: - Live WebSocket Subscription Management
+
+    public func startLiveSubscription() {
+        wsClient.hostURL = hostURL
+        wsClient.databaseName = databaseName
+        wsClient.connect(authToken: authToken)
+    }
+
+    public func stopLiveSubscription() {
+        wsClient.disconnect()
+    }
+
+    // MARK: - SpacetimeWebSocketDelegate
+
+    public func webSocketDidReceiveIdentity(identity: String, token: String) {
+        self.identity = identity
+        self.authToken = token
+    }
+
+    public func webSocketDidApplySubscription(rows: [String: [[Any]]]) {
+        var parsedCategories: [CategoryItem] = []
+        if let catRows = rows["my_categories"] {
+            parsedCategories = catRows.compactMap { CategoryItem.parse(from: $0) }
+        }
+
+        var parsedExpenses: [ExpenseItem] = []
+        if let expRows = rows["my_expenses"] {
+            parsedExpenses = expRows.compactMap { ExpenseItem.parse(from: $0) }
+                .sorted(by: { $0.spentAtMillis > $1.spentAtMillis })
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onLiveInitialHydration?(parsedCategories, parsedExpenses)
+        }
+    }
+
+    public func webSocketDidReceiveTransaction(update: TransactionUpdateMessage) {
+        DispatchQueue.main.async { [weak self] in
+            for tableUpdate in update.tableUpdates {
+                if tableUpdate.tableName == "expense" {
+                    for op in tableUpdate.operations {
+                        switch op {
+                        case .insert(let row):
+                            if let item = ExpenseItem.parse(from: row) {
+                                self?.onLiveExpenseInsert?(item)
+                            }
+                        case .delete(let row):
+                            if let id = (row.first as? NSNumber)?.uint64Value {
+                                self?.onLiveExpenseDelete?(id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public func webSocketStateDidChange(to state: WebSocketConnectionState) {
+        DispatchQueue.main.async { [weak self] in
+            self?.liveConnectionState = state
+        }
+    }
 
     // MARK: - Identity Management
 
@@ -269,50 +353,7 @@ public final class SpacetimeService {
             return []
         }
 
-        return rows.compactMap { row -> CategoryItem? in
-            guard row.count >= 7,
-                  let id = (row[0] as? NSNumber)?.uint64Value,
-                  let name = row[2] as? String,
-                  let icon = row[3] as? String,
-                  let colorHex = row[4] as? String else {
-                return nil
-            }
-
-            let isArchived = (row[6] as? Bool) ?? false
-            if isArchived { return nil }
-
-            var budgetCents: Int64? = nil
-            if let budgetVariant = row[5] as? [Any],
-               budgetVariant.count == 2,
-               let variantIdx = budgetVariant[0] as? Int, variantIdx == 0,
-               let budgetNum = budgetVariant[1] as? NSNumber {
-                budgetCents = budgetNum.int64Value
-            } else if let budgetNum = row[5] as? NSNumber {
-                budgetCents = budgetNum.int64Value
-            }
-
-            var spaceId: UInt64? = nil
-            if row.count > 7 {
-                if let spaceVariant = row[7] as? [Any],
-                   spaceVariant.count == 2,
-                   let variantIdx = spaceVariant[0] as? Int, variantIdx == 0,
-                   let sNum = spaceVariant[1] as? NSNumber {
-                    spaceId = sNum.uint64Value
-                } else if let sNum = row[7] as? NSNumber {
-                    spaceId = sNum.uint64Value
-                }
-            }
-
-            return CategoryItem(
-                id: id,
-                name: name,
-                icon: icon,
-                colorHex: colorHex,
-                monthlyBudgetCents: budgetCents,
-                isArchived: isArchived,
-                spaceId: spaceId
-            )
-        }
+        return rows.compactMap { CategoryItem.parse(from: $0) }
     }
 
     /// Fetches recent active expenses for the authenticated user and their couple space via `my_expenses` view
@@ -342,72 +383,7 @@ public final class SpacetimeService {
             return []
         }
 
-        let items: [ExpenseItem] = rows.compactMap { row -> ExpenseItem? in
-            guard row.count >= 8,
-                  let id = (row[0] as? NSNumber)?.uint64Value,
-                  let amount = (row[2] as? NSNumber)?.int64Value,
-                  let currency = row[3] as? String,
-                  let categoryId = (row[4] as? NSNumber)?.uint64Value,
-                  let paymentMethod = row[5] as? String,
-                  let note = row[6] as? String,
-                  let spentMillis = (row[7] as? NSNumber)?.int64Value else {
-                return nil
-            }
-
-            // Check deleted_at: [0, [micros]] or [0, micros] for Some, [1, []] for None
-            var deletedMillis: Int64? = nil
-            if row.count > 10,
-               let delVariant = row[10] as? [Any],
-               delVariant.count == 2,
-               let variantIdx = delVariant[0] as? Int, variantIdx == 0 {
-                if let microsArr = delVariant[1] as? [NSNumber], let micros = microsArr.first {
-                    deletedMillis = micros.int64Value / 1000
-                } else if let microsNum = delVariant[1] as? NSNumber {
-                    deletedMillis = microsNum.int64Value / 1000
-                }
-            }
-
-            // If deleted, filter out of recent list
-            if deletedMillis != nil {
-                return nil
-            }
-
-            // Check space_id: [0, id] for Some, [1, []] for None
-            var spaceId: UInt64? = nil
-            if row.count > 11 {
-                if let spaceVariant = row[11] as? [Any],
-                   spaceVariant.count == 2,
-                   let variantIdx = spaceVariant[0] as? Int, variantIdx == 0,
-                   let sNum = spaceVariant[1] as? NSNumber {
-                    spaceId = sNum.uint64Value
-                } else if let sNum = row[11] as? NSNumber {
-                    spaceId = sNum.uint64Value
-                }
-            }
-
-            // Check split_mode
-            var splitMode: String = "PERSONAL"
-            if row.count > 12, let sm = row[12] as? String {
-                splitMode = sm
-            }
-
-            let accountId = spaceId != nil ? "acc-couple" : "acc-personal"
-
-            return ExpenseItem(
-                id: id,
-                amountCents: amount,
-                currency: currency,
-                categoryId: categoryId,
-                paymentMethod: paymentMethod,
-                note: note,
-                spentAtMillis: spentMillis,
-                deletedAtMillis: deletedMillis,
-                spaceId: spaceId,
-                splitMode: splitMode,
-                accountId: accountId
-            )
-        }
-
+        let items: [ExpenseItem] = rows.compactMap { ExpenseItem.parse(from: $0) }
         return items.sorted(by: { $0.id > $1.id })
     }
 

@@ -33,12 +33,8 @@ public struct WeeklySpendTimelineProvider: TimelineProvider {
     }
     
     public func getSnapshot(in context: Context, completion: @escaping (WeeklySpendEntry) -> Void) {
-        if context.isPreview {
-            completion(WeeklySpendEntry(date: Date(), telemetry: .preview))
-        } else {
-            let telemetry = store.loadTelemetryWithFallback()
-            completion(WeeklySpendEntry(date: Date(), telemetry: telemetry))
-        }
+        let telemetry = store.loadTelemetry() ?? .preview
+        completion(WeeklySpendEntry(date: Date(), telemetry: telemetry))
     }
     
     public func getTimeline(in context: Context, completion: @escaping (Timeline<WeeklySpendEntry>) -> Void) {

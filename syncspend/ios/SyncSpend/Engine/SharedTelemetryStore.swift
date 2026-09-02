@@ -134,18 +134,26 @@ public final class SharedTelemetryStore {
     
     public static let appGroupSuiteName = "group.com.tandem.syncspend"
     public static let telemetryStorageKey = "syncspend_widget_weekly_telemetry"
+    public static let telemetryFileName = "widget_weekly_telemetry.json"
     
     private let userDefaults: UserDefaults
+    private let containerDirectoryURL: URL?
     
     public init(suiteName: String? = appGroupSuiteName) {
-        if let suiteName = suiteName, let groupDefaults = UserDefaults(suiteName: suiteName) {
-            self.userDefaults = groupDefaults
+        if let suiteName = suiteName {
+            self.userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
+            self.containerDirectoryURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: suiteName)
         } else {
             self.userDefaults = .standard
+            self.containerDirectoryURL = nil
         }
     }
     
-    /// Persists the latest weekly telemetry to shared UserDefaults and notifies WidgetCenter.
+    private var telemetryFileURL: URL? {
+        containerDirectoryURL?.appendingPathComponent(Self.telemetryFileName)
+    }
+    
+    /// Persists the latest weekly telemetry to shared UserDefaults, shared file container, and notifies WidgetCenter.
     public func save(
         snapshot: SpendingTelemetrySnapshot,
         currency: CurrencyItem,
@@ -185,6 +193,11 @@ public final class SharedTelemetryStore {
     public func save(telemetry: WidgetWeeklyTelemetry) {
         if let encoded = try? JSONEncoder().encode(telemetry) {
             userDefaults.set(encoded, forKey: Self.telemetryStorageKey)
+            
+            // Also write to shared App Group container file if available
+            if let fileURL = telemetryFileURL {
+                try? encoded.write(to: fileURL, options: .atomic)
+            }
         }
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
@@ -193,11 +206,20 @@ public final class SharedTelemetryStore {
     
     /// Loads the persisted `WidgetWeeklyTelemetry` or returns the sample preview if empty.
     public func loadTelemetry() -> WidgetWeeklyTelemetry? {
-        guard let data = userDefaults.data(forKey: Self.telemetryStorageKey),
-              let decoded = try? JSONDecoder().decode(WidgetWeeklyTelemetry.self, from: data) else {
-            return nil
+        // 1. Try reading from UserDefaults
+        if let data = userDefaults.data(forKey: Self.telemetryStorageKey),
+           let decoded = try? JSONDecoder().decode(WidgetWeeklyTelemetry.self, from: data) {
+            return decoded
         }
-        return decoded
+        
+        // 2. Fallback: try reading from shared App Group container file
+        if let fileURL = telemetryFileURL,
+           let data = try? Data(contentsOf: fileURL),
+           let decoded = try? JSONDecoder().decode(WidgetWeeklyTelemetry.self, from: data) {
+            return decoded
+        }
+        
+        return nil
     }
     
     /// Returns stored telemetry or fallback preview data.
@@ -208,5 +230,8 @@ public final class SharedTelemetryStore {
     /// Clears persisted telemetry (used for testing or logout).
     public func clear() {
         userDefaults.removeObject(forKey: Self.telemetryStorageKey)
+        if let fileURL = telemetryFileURL {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
     }
 }

@@ -15,7 +15,13 @@ public struct DailyAllowanceWidget: Widget {
         }
         .configurationDisplayName("Available Today")
         .description("Instant view of your daily spending headroom to keep your payday cycle on track.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([
+            .systemSmall,
+            .systemMedium,
+            .accessoryCircular,
+            .accessoryRectangular,
+            .accessoryInline
+        ])
         .contentMarginsDisabled()
     }
 }

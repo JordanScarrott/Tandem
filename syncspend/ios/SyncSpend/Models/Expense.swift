@@ -64,4 +64,68 @@ public struct ExpenseItem: Identifiable, Codable, Hashable {
         self.splitMode = splitMode
         self.accountId = accountId
     }
+
+    public static func parse(from row: [Any]) -> ExpenseItem? {
+        guard row.count >= 8,
+              let id = (row[0] as? NSNumber)?.uint64Value,
+              let amount = (row[2] as? NSNumber)?.int64Value,
+              let currency = row[3] as? String,
+              let categoryId = (row[4] as? NSNumber)?.uint64Value,
+              let paymentMethod = row[5] as? String,
+              let note = row[6] as? String,
+              let spentMillis = (row[7] as? NSNumber)?.int64Value else {
+            return nil
+        }
+
+        // Check deleted_at: [0, [micros]] or [0, micros] for Some, [1, []] for None
+        var deletedMillis: Int64? = nil
+        if row.count > 10,
+           let delVariant = row[10] as? [Any],
+           delVariant.count == 2,
+           let variantIdx = (delVariant[0] as? NSNumber)?.intValue ?? (delVariant[0] as? Int), variantIdx == 0 {
+            if let microsArr = delVariant[1] as? [NSNumber], let micros = microsArr.first {
+                deletedMillis = micros.int64Value / 1000
+            } else if let microsNum = delVariant[1] as? NSNumber {
+                deletedMillis = microsNum.int64Value / 1000
+            }
+        }
+
+        // Check space_id: [0, id] for Some, [1, []] for None
+        var spaceId: UInt64? = nil
+        if row.count > 11 {
+            if let spaceVariant = row[11] as? [Any],
+               spaceVariant.count == 2,
+               let variantIdx = (spaceVariant[0] as? NSNumber)?.intValue ?? (spaceVariant[0] as? Int), variantIdx == 0 {
+                if let sNum = spaceVariant[1] as? NSNumber {
+                    spaceId = sNum.uint64Value
+                } else if let sArr = spaceVariant[1] as? [NSNumber], let sNum = sArr.first {
+                    spaceId = sNum.uint64Value
+                }
+            } else if let sNum = row[11] as? NSNumber {
+                spaceId = sNum.uint64Value
+            }
+        }
+
+        // Check split_mode
+        var splitMode: String = "PERSONAL"
+        if row.count > 12, let sm = row[12] as? String {
+            splitMode = sm
+        }
+
+        let accountId = spaceId != nil ? "acc-couple" : "acc-personal"
+
+        return ExpenseItem(
+            id: id,
+            amountCents: amount,
+            currency: currency,
+            categoryId: categoryId,
+            paymentMethod: paymentMethod,
+            note: note,
+            spentAtMillis: spentMillis,
+            deletedAtMillis: deletedMillis,
+            spaceId: spaceId,
+            splitMode: splitMode,
+            accountId: accountId
+        )
+    }
 }

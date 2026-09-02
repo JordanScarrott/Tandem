@@ -30,15 +30,80 @@ public struct DailyAllowanceWidgetView: View {
     public var body: some View {
         Group {
             switch family {
+            case .accessoryCircular:
+                accessoryCircularView
+                    .containerBackground(for: .widget) {
+                        AccessoryWidgetBackground()
+                    }
+            case .accessoryRectangular:
+                accessoryRectangularView
+                    .containerBackground(for: .widget) {
+                        AccessoryWidgetBackground()
+                    }
+            case .accessoryInline:
+                accessoryInlineView
+                    .containerBackground(for: .widget) {
+                        Color.clear
+                    }
             case .systemMedium:
                 mediumView
+                    .containerBackground(for: .widget) {
+                        Color(uiColor: .systemGroupedBackground)
+                    }
             default:
                 smallView
+                    .containerBackground(for: .widget) {
+                        Color(uiColor: .systemGroupedBackground)
+                    }
             }
         }
-        .containerBackground(for: .widget) {
-            Color(uiColor: .systemGroupedBackground)
+    }
+    
+    // MARK: - Lock Screen Circular Accessory
+    private var accessoryCircularView: some View {
+        let maxAllowance = max(Double(entry.telemetry.todayBaseAllowanceCents), 1.0)
+        let available = max(Double(entry.telemetry.todayAvailableCents), 0.0)
+        let ratio = min(available / maxAllowance, 1.0)
+        
+        return Gauge(value: ratio) {
+            Text("TODAY")
+                .font(.system(size: 8, weight: .bold))
+        } currentValueLabel: {
+            Text(entry.telemetry.formattedTodayAvailable)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .minimumScaleFactor(0.5)
         }
+        .gaugeStyle(.accessoryCircular)
+    }
+    
+    // MARK: - Lock Screen Rectangular Accessory
+    private var accessoryRectangularView: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "creditcard.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("AVAILABLE TODAY")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.3)
+            }
+            
+            Text(entry.telemetry.formattedTodayAvailable)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+            
+            HStack(spacing: 4) {
+                Text(healthLabel)
+                    .font(.system(size: 10, weight: .semibold))
+                Text("•")
+                Text("\(entry.telemetry.daysRemainingInCycle)d left")
+                    .font(.system(size: 10))
+            }
+            .foregroundStyle(.secondary)
+        }
+    }
+    
+    // MARK: - Lock Screen Inline Accessory
+    private var accessoryInlineView: some View {
+        Label("\(entry.telemetry.formattedTodayAvailable) today", systemImage: "creditcard")
     }
     
     // MARK: - Small Widget View

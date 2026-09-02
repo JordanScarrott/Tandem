@@ -39,7 +39,39 @@ public final class DashboardViewModel {
     public var showingUndoBar: Bool = false
     private var undoTimer: Timer?
     
-    public init() {}
+    public init() {
+        setupLiveSubscriptionBindings()
+    }
+    
+    private func setupLiveSubscriptionBindings() {
+        service.onLiveInitialHydration = { [weak self] newCats, newExps in
+            guard let self = self else { return }
+            if !newCats.isEmpty { self.categories = newCats }
+            if !newExps.isEmpty { self.expenses = newExps }
+            self.syncTelemetryToSharedStore()
+        }
+        
+        service.onLiveExpenseInsert = { [weak self] newExpense in
+            guard let self = self else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                if let idx = self.expenses.firstIndex(where: { $0.id == newExpense.id }) {
+                    self.expenses[idx] = newExpense
+                } else {
+                    self.expenses.insert(newExpense, at: 0)
+                    self.expenses.sort(by: { $0.spentAtMillis > $1.spentAtMillis })
+                }
+            }
+            self.syncTelemetryToSharedStore()
+        }
+        
+        service.onLiveExpenseDelete = { [weak self] expenseId in
+            guard let self = self else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                self.expenses.removeAll(where: { $0.id == expenseId })
+            }
+            self.syncTelemetryToSharedStore()
+        }
+    }
     
     public var activeAccount: AccountItem {
         accounts.first(where: { $0.id == activeAccountId }) ?? accounts.first ?? AccountItem.defaultAccounts[0]
@@ -283,9 +315,11 @@ public final class DashboardViewModel {
     
     public func refreshAll() async {
         isLoading = true
+        service.startLiveSubscription()
         await loadUserProfile()
         await loadCategories()
         await loadExpenses()
+        syncTelemetryToSharedStore()
         isLoading = false
     }
 
@@ -307,12 +341,14 @@ public final class DashboardViewModel {
         do {
             let fetched = try await service.fetchCategories()
             self.categories = fetched
+            syncTelemetryToSharedStore()
         } catch {
             print("DashboardViewModel: Failed to load categories: \(error)")
         }
     }
     
     public func syncTelemetryToSharedStore() {
+        guard !categories.isEmpty || !expenses.isEmpty else { return }
         let weeklySnapshot = SpendingTelemetryEngine.analyze(
             expenses: baseFilteredExpenses,
             categories: categories,
