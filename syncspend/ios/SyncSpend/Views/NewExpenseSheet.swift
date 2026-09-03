@@ -358,9 +358,7 @@ public struct NewExpenseSheet: View {
                 if let expense = expenseToEdit {
                     viewModel.populate(with: expense)
                 } else {
-                    if viewModel.selectedCategoryId == nil {
-                        viewModel.selectedCategoryId = categories.first?.id
-                    }
+                    viewModel.reconcileSelectedCategory(with: categories)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         if viewModel.amountInput.isEmpty {
                             isAmountFocused = true

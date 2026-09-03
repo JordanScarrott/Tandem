@@ -47,6 +47,7 @@
 		A00100010001000100000002 /* SpacetimeWebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200020002000200000002 /* SpacetimeWebSocketClient.swift */; };
 		A00100010001000100000003 /* SpacetimeWebSocketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200020002000200000003 /* SpacetimeWebSocketTests.swift */; };
 		B00100010001000100000001 /* LockScreenWidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00200020002000200000001 /* LockScreenWidgetTests.swift */; };
+		C00100010001000100000001 /* NewExpenseViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00200020002000200000001 /* NewExpenseViewModelTests.swift */; };
 		B00100010001000100000002 /* QuickLogWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10F1B9C4E03B718D4099232 /* QuickLogWidget.swift */; };
 		B00100010001000100000003 /* DailyAllowanceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEA284B21280C571D200157 /* DailyAllowanceWidget.swift */; };
 		B00100010001000100000004 /* DailyAllowanceWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34A1FF70F28A804B3D1ED4B /* DailyAllowanceWidgetView.swift */; };
@@ -160,6 +161,7 @@
 		A00200020002000200000002 /* SpacetimeWebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacetimeWebSocketClient.swift; sourceTree = "<group>"; };
 		A00200020002000200000003 /* SpacetimeWebSocketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpacetimeWebSocketTests.swift; sourceTree = "<group>"; };
 		B00200020002000200000001 /* LockScreenWidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenWidgetTests.swift; sourceTree = "<group>"; };
+		C00200020002000200000001 /* NewExpenseViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseViewModelTests.swift; sourceTree = "<group>"; };
 		A51BC96EDBFDC21E20495994 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		A9C5C7629402483D9F9F167C /* CategoryEnvelopesDashboardSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryEnvelopesDashboardSection.swift; sourceTree = "<group>"; };
 		ADE5E7A4E733B813F7902D40 /* WeeklySpendWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklySpendWidget.swift; sourceTree = "<group>"; };
@@ -279,6 +281,7 @@
 				C083BE8C3C3F60B4520EB0B8 /* SpendingTelemetryEngineTests.swift */,
 				A00200020002000200000003 /* SpacetimeWebSocketTests.swift */,
 				B00200020002000200000001 /* LockScreenWidgetTests.swift */,
+				C00200020002000200000001 /* NewExpenseViewModelTests.swift */,
 			);
 			path = SyncSpendTests;
 			sourceTree = "<group>";
@@ -456,6 +459,7 @@
 				1AAA60E8D1937CB0A30A7F77 /* SpendingTelemetryEngineTests.swift in Sources */,
 				A00100010001000100000003 /* SpacetimeWebSocketTests.swift in Sources */,
 				B00100010001000100000001 /* LockScreenWidgetTests.swift in Sources */,
+				C00100010001000100000001 /* NewExpenseViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
