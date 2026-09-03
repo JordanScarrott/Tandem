@@ -292,6 +292,9 @@ public struct MainDashboardView: View {
                     expenseToEdit: expense,
                     onExpenseSaved: {
                         Task { await viewModel.loadExpenses() }
+                    },
+                    onExpenseDeleted: { deletedItem in
+                        viewModel.deleteExpense(deletedItem)
                     }
                 )
             }

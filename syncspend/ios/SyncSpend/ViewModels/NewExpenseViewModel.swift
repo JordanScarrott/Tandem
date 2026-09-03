@@ -22,6 +22,8 @@ public protocol ExpenseLoggingService: Sendable {
         spentDate: Date,
         splitMode: String
     ) async throws
+
+    func softDeleteExpense(expenseId: UInt64) async throws
 }
 
 extension SpacetimeService: ExpenseLoggingService {}
@@ -156,6 +158,21 @@ public final class NewExpenseViewModel {
                 )
             }
             persistDefaults(categoryId: catId, paymentMethod: selectedPaymentMethod)
+            isSubmitting = false
+            return true
+        } catch {
+            self.errorMessage = error.localizedDescription
+            self.isSubmitting = false
+            return false
+        }
+    }
+
+    public func deleteExpense() async -> Bool {
+        guard let expId = editingExpenseId else { return false }
+        isSubmitting = true
+        errorMessage = nil
+        do {
+            try await service.softDeleteExpense(expenseId: expId)
             isSubmitting = false
             return true
         } catch {

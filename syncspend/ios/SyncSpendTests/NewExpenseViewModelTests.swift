@@ -35,6 +35,14 @@ final class MockExpenseLoggingService: @unchecked Sendable, ExpenseLoggingServic
         }
         updatedExpenses.append((expenseId, amountCents, currency, categoryId, paymentMethod, note, spentDate, splitMode))
     }
+
+    var deletedExpenseIds: [UInt64] = []
+    func softDeleteExpense(expenseId: UInt64) async throws {
+        if shouldFail {
+            throw NSError(domain: "MockExpenseLoggingService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Delete failed"])
+        }
+        deletedExpenseIds.append(expenseId)
+    }
 }
 
 final class NewExpenseViewModelTests: XCTestCase {
@@ -188,5 +196,55 @@ final class NewExpenseViewModelTests: XCTestCase {
         XCTAssertEqual(testUserDefaults.string(forKey: NewExpenseViewModel.lastUsedPaymentMethodKey), "Debit Card")
         let storedCatNum = testUserDefaults.object(forKey: NewExpenseViewModel.lastUsedCategoryIdKey) as? NSNumber
         XCTAssertEqual(storedCatNum?.uint64Value, 10)
+    }
+
+    func testDeleteExpense_WhenEditing_CallsServiceAndSucceeds() async {
+        let viewModel = NewExpenseViewModel(service: mockService, userDefaults: testUserDefaults)
+        let expense = ExpenseItem(
+            id: 701,
+            amountCents: 2500,
+            currency: "ZAR",
+            categoryId: 12,
+            paymentMethod: "Cash",
+            note: "Lunch",
+            spentAtMillis: Int64(Date().timeIntervalSince1970 * 1000.0)
+        )
+        viewModel.populate(with: expense)
+        XCTAssertTrue(viewModel.isEditing)
+
+        let success = await viewModel.deleteExpense()
+        XCTAssertTrue(success)
+        XCTAssertEqual(mockService.deletedExpenseIds, [701])
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.isSubmitting)
+    }
+
+    func testDeleteExpense_WhenNotEditing_ReturnsFalse() async {
+        let viewModel = NewExpenseViewModel(service: mockService, userDefaults: testUserDefaults)
+        XCTAssertFalse(viewModel.isEditing)
+
+        let success = await viewModel.deleteExpense()
+        XCTAssertFalse(success)
+        XCTAssertTrue(mockService.deletedExpenseIds.isEmpty)
+    }
+
+    func testDeleteExpense_WhenServiceFails_SetsErrorMessage() async {
+        mockService.shouldFail = true
+        let viewModel = NewExpenseViewModel(service: mockService, userDefaults: testUserDefaults)
+        let expense = ExpenseItem(
+            id: 702,
+            amountCents: 1000,
+            currency: "ZAR",
+            categoryId: 12,
+            paymentMethod: "Cash",
+            note: "Snack",
+            spentAtMillis: Int64(Date().timeIntervalSince1970 * 1000.0)
+        )
+        viewModel.populate(with: expense)
+
+        let success = await viewModel.deleteExpense()
+        XCTAssertFalse(success)
+        XCTAssertEqual(viewModel.errorMessage, "Delete failed")
+        XCTAssertFalse(viewModel.isSubmitting)
     }
 }

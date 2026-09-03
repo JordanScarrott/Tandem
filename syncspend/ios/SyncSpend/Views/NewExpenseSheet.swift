@@ -11,9 +11,11 @@ public struct NewExpenseSheet: View {
     public let smartSuggestionsEnabled: Bool
     public let expenseToEdit: ExpenseItem?
     public let onExpenseSaved: () -> Void
+    public let onExpenseDeleted: ((ExpenseItem) -> Void)?
     
     @State private var showingDatePicker: Bool = false
     @State private var showingAddCategory: Bool = false
+    @State private var showingDeleteConfirmation: Bool = false
     
     public init(
         categories: [CategoryItem],
@@ -21,7 +23,8 @@ public struct NewExpenseSheet: View {
         accountId: String,
         smartSuggestionsEnabled: Bool,
         expenseToEdit: ExpenseItem? = nil,
-        onExpenseSaved: @escaping () -> Void
+        onExpenseSaved: @escaping () -> Void,
+        onExpenseDeleted: ((ExpenseItem) -> Void)? = nil
     ) {
         self.categories = categories
         self.currency = currency
@@ -29,6 +32,7 @@ public struct NewExpenseSheet: View {
         self.smartSuggestionsEnabled = smartSuggestionsEnabled
         self.expenseToEdit = expenseToEdit
         self.onExpenseSaved = onExpenseSaved
+        self.onExpenseDeleted = onExpenseDeleted
     }
     
     private var selectedCategory: CategoryItem? {
@@ -283,6 +287,27 @@ public struct NewExpenseSheet: View {
                                 .foregroundStyle(Theme.accentRed)
                                 .padding(.horizontal, 4)
                         }
+
+                        if viewModel.isEditing {
+                            Button(role: .destructive) {
+                                Haptics.impact(.medium)
+                                showingDeleteConfirmation = true
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Delete Expense")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Theme.accentRed.opacity(0.1))
+                                .foregroundStyle(Theme.accentRed)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 4)
+                        }
                         
                         // Bottom spacer to ensure scrolling clears the fixed bottom action button
                         Spacer()
@@ -343,6 +368,19 @@ public struct NewExpenseSheet: View {
                     .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(Theme.accentBlue)
                 }
+
+                if viewModel.isEditing {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            Haptics.impact(.medium)
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.accentRed)
+                        }
+                    }
+                }
             }
             .presentationDragIndicator(.visible)
             .sheet(isPresented: $showingDatePicker) {
@@ -353,6 +391,18 @@ public struct NewExpenseSheet: View {
                 AddCategorySheet {
                     // Category added
                 }
+            }
+            .confirmationDialog(
+                "Delete Expense?",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Expense", role: .destructive) {
+                    deleteCurrentExpense()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Are you sure you want to remove this expense? You can undo this action.")
             }
             .onAppear {
                 if let expense = expenseToEdit {
@@ -381,6 +431,22 @@ public struct NewExpenseSheet: View {
                 Haptics.notification(.success)
                 onExpenseSaved()
                 dismiss()
+            }
+        }
+    }
+
+    private func deleteCurrentExpense() {
+        guard let expense = expenseToEdit else { return }
+        Haptics.notification(.warning)
+        if let onExpenseDeleted = onExpenseDeleted {
+            onExpenseDeleted(expense)
+            dismiss()
+        } else {
+            Task {
+                let success = await viewModel.deleteExpense()
+                if success {
+                    dismiss()
+                }
             }
         }
     }
